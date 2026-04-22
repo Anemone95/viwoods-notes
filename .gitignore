@@ -1,0 +1,40 @@
+# ===== Regenerable workspace =====
+# apktool / jadx output and all built APKs live under work/. Everything here
+# can be reproduced from backup/*.apk via `make decompile` plus re-applying
+# the patches documented in patches/ and src/.
+work/
+
+# ===== Large upstream artifacts =====
+# The factory APK pulled from the device (~150MB). Re-pull with:
+#   adb pull $(adb shell pm path com.wisky.notewriter | cut -d: -f2) \
+#            backup/com.wisky.notewriter_<ver>.apk
+backup/*.apk
+backup/*.apk.idsig
+
+# ===== Signing / secrets =====
+*.keystore
+*.jks
+*.idsig
+*.pem
+*.p12
+
+# ===== macOS =====
+.DS_Store
+._*
+.AppleDouble
+.LSOverride
+
+# ===== Editors / IDEs =====
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+\#*\#
+.\#*
+
+# ===== Misc =====
+*.log
+tmp/
+.claude/

@@ -1,0 +1,51 @@
+Feature 1 — recording limit 10min → 300min
+============================================
+
+Three edits. Two smali (runtime behavior) + one layout XML (UI label).
+Java reference: src/feature1_recording_limit/AudioRecorder.patch.java
+
+---------------------------------------------------------------
+File: res/layout/wisky_component_include_notetaking_toolbar.xml
+(the "/10'" label shown next to the running recording timer is a
+ static text attribute in the layout — never updated from code.)
+
+  -    <TextView ... android:id="@id/audio_recording_limit" ... android:text="/10'"  />
+  +    <TextView ... android:id="@id/audio_recording_limit" ... android:text="/300'" />
+
+---------------------------------------------------------------
+File: smali_classes2/com/wisky/libnotewritercomponent/audio/AudioRecorder.smali
+(constant fields — bookkeeping; not referenced at runtime, patched for consistency)
+
+  -.field public  static final MAX_RECORDING_10MIN:J   = 0xaL         # 10
+  +.field public  static final MAX_RECORDING_10MIN:J   = 0x12cL       # 300
+
+  -.field private static final MAX_RECORDING_DURATION:J = 0x92ba8L    # 601000
+  +.field private static final MAX_RECORDING_DURATION:J = 0x112ac68L  # 18001000
+
+---------------------------------------------------------------
+File: smali_classes2/com/wisky/libnotewritercomponent/audio/AudioRecorder$startProgressTimer$1$1.smali
+(the actual runtime check — this is the load-bearing edit)
+
+Line ~79, inside the Runnable posted from the recording-progress TimerTask:
+
+  -    const-wide/32 v2, 0x92ba8                                      # 601000 ms
+  +    const-wide/32 v2, 0x112ac68                                    # 18001000 ms
+
+Surrounding context (unchanged):
+      iget-wide v0, p0, ...$elapsedTime:J
+      const-wide/32 v2, 0x112ac68
+      cmp-long   v0, v0, v2
+      if-lez     v0, :cond_1
+      # > cap → stopRecording()
+      iget-object p0, p0, ...this$0:...AudioRecorder;
+      invoke-virtual {p0}, ...AudioRecorder;->stopRecording()V
+      :cond_1
+      return-void
+
+Hex math:
+  300 * 60 * 1000 + 1000 = 18_001_000 = 0x112AC68
+  300                    = 0x12C
+
+Instruction width: `const-wide/32` encodes a signed 32-bit literal and
+sign-extends to 64-bit at runtime. Max ≈ 2.14e9, so 18_001_000 fits;
+no re-encoding to `const-wide` needed.
