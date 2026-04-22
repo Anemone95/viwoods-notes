@@ -1,0 +1,80 @@
+Feature 2 — add "AI 智能重命名" menu entry
+============================================
+
+Java reference: src/feature2_ai_rename/AiRenameHelper.java
+
+---------------------------------------------------------------
+NEW FILE: smali_classes2/com/wisky/modulenotemanager/ext/AiRenameHelper.smali
+
+Static helper. `run(SidebarNoteFragment)` finds the first checked note,
+grabs its fileName, and fires the existing fire-and-forget AI channel:
+
+    WiskySystemApiManager.Companion.toAiPage(content, prompt, cmdList, true)
+
+Same channel used by the built-in AI sub-items (整理内容 / 生成邮件 / …).
+Launches the AI app with our prompt preloaded and auto-sends.
+
+---------------------------------------------------------------
+PATCH: smali_classes2/com/wisky/libnotewritercomponent/view/WiskyOperationView.smali
+
+  (1) Add constant
+    +.field public static final OPERATION_AI_RENAME:Ljava/lang/String; = "OPERATION_AI_RENAME"
+
+  (2) Rendering. Instead of wedging a new case into the sparse-switch on
+      String.hashCode(), we tack an equals-check onto the post-switch
+      convergence label :goto_2 (just before the mItem Map.put). Skipping
+      the switch means no hashCode math and no index re-shuffling.
+
+        :goto_2
+      +  const-string v4, "OPERATION_AI_RENAME"
+      +  invoke-virtual {v0, v4}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+      +  move-result v4
+      +  if-eqz v4, :ai_rename_skip
+      +  sget v4, R$drawable;->wisky_component_ic_svg_notetaking_ai_white:I
+      +  invoke-virtual {v2, v4}, ImageView;->setImageResource(I)V
+      +  const-string v4, "AI重命名"
+      +  invoke-virtual {v3, v4}, TextView;->setText(CharSequence;)V
+      +  :ai_rename_skip
+        iget-object v4, p0, ...->mItem:Ljava/util/Map;    (existing, unchanged)
+
+      Uses the existing AI icon (ic_svg_notetaking_ai_white). Label via
+      literal CharSequence so we don't touch strings.xml. v4 is reused
+      the next line anyway — safe clobber.
+
+---------------------------------------------------------------
+PATCH: smali_classes2/com/wisky/modulenotemanager/note/SidebarNoteFragment.smali
+
+  showExcludeDeletedNoteOperation() builds the menu list in one of two
+  arrayListOf(...) calls then converges at :goto_0. We append one more
+  element at the convergence point (avoids rebuilding filled-new-array):
+
+        :goto_0
+      +  const-string v2, "OPERATION_AI_RENAME"
+      +  invoke-virtual {v1, v2}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
+        iget-object v2, v0, ...->mAdapter:...
+
+---------------------------------------------------------------
+PATCH: smali_classes2/com/wisky/modulenotemanager/note/SidebarNoteFragment$showExcludeDeletedNoteOperation$3.smali
+
+  Intercept OPERATION_AI_RENAME at the top of onOperationItemClick,
+  BEFORE the hashCode() sparse-switch. Means we don't have to splice a
+  new case (and its hashCode) into the switch table.
+
+    public void onOperationItemClick(String name) {
+        Intrinsics.checkNotNullParameter(name, "operationName");
+      + if ("OPERATION_AI_RENAME".equals(name)) {
+      +     AiRenameHelper.run(this.this$0);
+      +     return;
+      + }
+        switch (name.hashCode()) { ... }
+    }
+
+---------------------------------------------------------------
+MVP scope / upgrade path
+
+  Phase 1 (this patch): content = note.getFileName()  (title only)
+  Phase 2 (next):       content = note-thumbnail File → toAiPageOfFile(...)
+
+  AiRenameHelper is the only class to rewire — Phase-2 diff is ~5 lines
+  (swap getFileName() for a thumbnail path lookup and toAiPage for
+  toAiPageOfFile). No UI-side changes.

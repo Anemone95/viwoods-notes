@@ -1,0 +1,52 @@
+Feature double-tap-hide — hide recording window on double-tap
+===============================================================
+
+Java reference: src/feature_double_tap_hide/DoubleTapHideListener.java
+
+---------------------------------------------------------------
+NEW FILE: smali_classes2/com/wisky/libnotewritercomponent/view/toolbar/DoubleTapHideListener.smali
+
+Implements View.OnClickListener. Tracks `lastClickTime` via
+SystemClock.uptimeMillis(); two clicks < 300ms apart → v.setVisibility(GONE).
+A single click just updates the timestamp (so a stray single tap does nothing
+visible).
+
+---------------------------------------------------------------
+PATCH: smali_classes2/com/wisky/libnotewritercomponent/view/toolbar/ToolbarLayout.smali
+
+showAudioRecordLayout(): attach the listener to mBinding.llAudioRecord
+immediately before making the view visible. setOnClickListener is idempotent
+so re-binding on every show is fine.
+
+  -.method public final showAudioRecordLayout()V
+  -    .locals 1
+  -    iget-object p0, p0, ToolbarLayout;->mBinding:...Binding;
+  -    iget-object p0, p0, ...Binding;->llAudioRecord:Landroid/widget/LinearLayout;
+  -    const/4 v0, 0x0
+  -    invoke-virtual {p0, v0}, LinearLayout;->setVisibility(I)V
+  -    return-void
+  -.end method
+  +.method public final showAudioRecordLayout()V
+  +    .locals 2
+  +    iget-object v0, p0, ToolbarLayout;->mBinding:...Binding;
+  +    iget-object v0, v0, ...Binding;->llAudioRecord:Landroid/widget/LinearLayout;
+  +    new-instance v1, ...DoubleTapHideListener;
+  +    invoke-direct {v1}, ...DoubleTapHideListener;-><init>()V
+  +    invoke-virtual {v0, v1}, LinearLayout;->setOnClickListener(...)V
+  +    const/4 v1, 0x0
+  +    invoke-virtual {v0, v1}, LinearLayout;->setVisibility(I)V
+  +    return-void
+  +.end method
+
+Register delta: .locals 1 → .locals 2. We stop reusing p0 as a scratch register;
+v0 holds the LinearLayout, v1 holds first the listener then the visibility flag.
+
+Why here and not in <init>: ToolbarLayout.<init> is already enormous (>150
+method calls). Binding in the single show-method point keeps the patch
+surface tiny and localised; idempotence covers every show.
+
+Why llAudioRecord and not the DraggableViewWrapper: DraggableViewWrapper's
+onInterceptTouchEvent returns false on ACTION_DOWN and only starts
+intercepting once the touch-slop threshold is crossed. Short taps therefore
+reach the child LinearLayout; OnClickListener on llAudioRecord fires as
+expected. Drag still works for slow/longer movements.

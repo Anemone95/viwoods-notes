@@ -55,3 +55,19 @@
 //                                writes to it, so the suffix of the recording
 //                                timer ("00:23/10'") is driven by this XML.
 //                                Change "/10'" → "/300'".
+//
+// Patch surface (UI clock):      com.wisky.libnotewritercomponent.audio.AudioUtil
+//                                formatMillis(long) had a dead branch that
+//                                clamped seconds to 0 whenever minutes==10:
+//
+//                                  if (minutes == 10) {
+//                                      return String.format("%02d:%02d", minutes, 0);
+//                                  }
+//
+//                                With the 10-min cap this was unobservable
+//                                (recorder stopped at 10:01). With the cap
+//                                raised to 300min the display freezes at
+//                                "10:00" for the whole 10th minute. Drop the
+//                                branch so formatMillis always falls through
+//                                to the normal mm:ss formatter (hours>=1 is
+//                                handled by the existing HH:MM:SS branch).

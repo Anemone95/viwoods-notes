@@ -23,6 +23,12 @@
 #   make distclean       Also remove apktool-out & jadx-out.
 #   make decompile       (Re-)decompile the backup APK into work/apktool-out
 #                        and work/jadx-out.
+#   make overlay-apply   Copy every path listed in overlay-manifest.txt from
+#                        overlay/ into work/apktool-out/. Runs automatically
+#                        the first time after `make decompile`.
+#   make overlay-sync    Reverse: copy those same paths from
+#                        work/apktool-out/ BACK into overlay/ (for committing
+#                        new edits to git).
 #
 # Variables you can override, e.g.  make install APK=work/release/feature1.apk
 #   APK      the signed APK to install (default: work/release/app-signed.apk)
@@ -36,6 +42,9 @@ WORK         := $(ROOT)/work
 APKTOOL_OUT  := $(WORK)/apktool-out
 JADX_OUT     := $(WORK)/jadx-out
 RELEASE      := $(WORK)/release
+OVERLAY      := $(ROOT)/overlay
+OVERLAY_MANIFEST := $(ROOT)/overlay-manifest.txt
+OVERLAY_STAMP    := $(APKTOOL_OUT)/.overlay-applied
 
 UNSIGNED     := $(RELEASE)/app-unsigned.apk
 ALIGNED      := $(RELEASE)/app-aligned.apk
@@ -63,8 +72,9 @@ KS_ALIAS     := androiddebugkey
 KEY_PASS     := android
 
 .PHONY: all build install fix-user reinstall verify clean distclean decompile \
+        overlay-apply overlay-sync \
         remount system-push framework-restart \
-        snapshot-feature1 snapshot-feature2 snapshot-feature3 \
+        snapshot-default-name snapshot-double-tap-hide snapshot-feature1 snapshot-feature2 snapshot-feature3 \
         print-patch-status help
 
 all: build
@@ -73,9 +83,12 @@ help:
 	@sed -n '1,/^$$/p' $(firstword $(MAKEFILE_LIST)) | sed 's/^# \{0,1\}//'
 
 # ---------- decompile ----------
+# After a fresh decompile the overlay stamp must be removed so the next
+# build re-applies our tracked edits.
 $(APKTOOL_OUT)/apktool.yml: $(BACKUP_APK)
 	@mkdir -p $(WORK)
 	apktool d -f -o $(APKTOOL_OUT) $(BACKUP_APK)
+	@rm -f $(OVERLAY_STAMP)
 
 $(JADX_OUT)/sources: $(BACKUP_APK)
 	@mkdir -p $(WORK)
@@ -83,10 +96,36 @@ $(JADX_OUT)/sources: $(BACKUP_APK)
 
 decompile: $(APKTOOL_OUT)/apktool.yml $(JADX_OUT)/sources
 
+# ---------- overlay (tracked edits on top of apktool-out) ----------
+# overlay-apply copies every path in overlay-manifest.txt from overlay/
+# into work/apktool-out/. Fires automatically on first build after
+# decompile; subsequent in-place edits in apktool-out are NOT clobbered
+# because the stamp file is still present.
+$(OVERLAY_STAMP): $(APKTOOL_OUT)/apktool.yml $(OVERLAY_MANIFEST)
+	@echo ">>> applying overlay -> $(APKTOOL_OUT)"
+	@while IFS= read -r path; do \
+	    case "$$path" in "#"*|"") continue ;; esac; \
+	    mkdir -p "$(APKTOOL_OUT)/$$(dirname "$$path")"; \
+	    cp "$(OVERLAY)/$$path" "$(APKTOOL_OUT)/$$path"; \
+	done < $(OVERLAY_MANIFEST)
+	@touch $@
+
+overlay-apply: $(OVERLAY_STAMP)
+
+# Capture current apktool-out edits back into overlay/ (for git commit).
+overlay-sync:
+	@echo ">>> syncing apktool-out -> overlay/ (paths from $(OVERLAY_MANIFEST))"
+	@while IFS= read -r path; do \
+	    case "$$path" in "#"*|"") continue ;; esac; \
+	    mkdir -p "$(OVERLAY)/$$(dirname "$$path")"; \
+	    cp "$(APKTOOL_OUT)/$$path" "$(OVERLAY)/$$path"; \
+	done < $(OVERLAY_MANIFEST)
+	@echo ">>> done. now: git add overlay/ && git commit"
+
 # ---------- build ----------
 # Force a rebuild every time — smali files are edited outside make's
 # dependency graph, so we cannot reliably mtime-track them.
-$(UNSIGNED): FORCE
+$(UNSIGNED): FORCE $(OVERLAY_STAMP)
 	@mkdir -p $(RELEASE)
 	apktool b $(APKTOOL_OUT) -o $(UNSIGNED)
 
@@ -153,6 +192,14 @@ verify: $(APK)
 	$(APKSIGNER) verify --verbose $(APK)
 
 # ---------- snapshots (per-feature checkpoint) ----------
+snapshot-default-name: build
+	cp -f $(RELEASE)/app-signed.apk $(RELEASE)/feature_default_name.apk
+	@echo "snapshot: $(RELEASE)/feature_default_name.apk"
+
+snapshot-double-tap-hide: build
+	cp -f $(RELEASE)/app-signed.apk $(RELEASE)/feature_double_tap_hide.apk
+	@echo "snapshot: $(RELEASE)/feature_double_tap_hide.apk"
+
 snapshot-feature1: build
 	cp -f $(RELEASE)/app-signed.apk $(RELEASE)/feature1.apk
 	@echo "snapshot: $(RELEASE)/feature1.apk"

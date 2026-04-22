@@ -1,15 +1,14 @@
 # ===== Regenerable workspace =====
 # apktool / jadx output and all built APKs live under work/. Everything here
-# can be reproduced from backup/*.apk via `make decompile` plus re-applying
-# the patches documented in patches/ and src/.
+# is regenerated from:
+#   - backup/*.apk (the upstream factory APK; tracked)
+#   - overlay/     (our edits, keyed by overlay-manifest.txt; tracked)
+#   - make build   (decompiles if needed, applies overlay, repackages).
 work/
 
-# ===== Large upstream artifacts =====
-# The factory APK pulled from the device (~150MB). Re-pull with:
-#   adb pull $(adb shell pm path com.wisky.notewriter | cut -d: -f2) \
-#            backup/com.wisky.notewriter_<ver>.apk
-backup/*.apk
-backup/*.apk.idsig
+# Backup APK is intentionally NOT ignored — it is the reproducibility anchor.
+# If it grows beyond 100MB and you push to a host with that limit (GitHub),
+# move it to git-lfs; locally plain git handles the size fine.
 
 # ===== Signing / secrets =====
 *.keystore

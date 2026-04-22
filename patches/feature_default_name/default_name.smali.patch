@@ -1,0 +1,39 @@
+Feature "default-name" — new notes auto-titled yy/MM/dd.HH:mm
+==============================================================
+
+Java reference: src/feature_default_name/WiskyNoteNameUtil.patch.java
+
+---------------------------------------------------------------
+File: smali_classes2/com/wisky/libnotewritercomponent/utils/WiskyNoteNameUtil$Companion.smali
+
+Full-body rewrite of  createDefaultNoteName(Ljava/util/List;)Ljava/lang/String;
+
+  Before: loops i=1..∞, asks Application.getString(R.string.wisky_component_note_count, i)
+          → "Paper 1", "笔记 1" etc., returns first non-duplicate.
+
+  After:  base = new SimpleDateFormat("yy/MM/dd.HH:mm").format(new Date());
+          if base not in existNames → return base
+          else loop i=1..∞:
+              cand = base + " (" + i + ")"
+              if cand not in existNames → return cand
+
+  Register frame:
+    .locals 3 → .locals 5
+    v0  base string
+    v1  indexOf result, then counter i (reassigned via const/4 v1, 0x1)
+    v2  -1 sentinel / StringBuilder / loop cap
+    v3  " (" ")" constants / nested indexOf result
+    v4  -1 sentinel for nested check
+    p1  existNames (untouched)
+
+---------------------------------------------------------------
+File: smali_classes2/com/zhangcc/libccbase/DateTimeFormat$Companion.smali
+
+  Line 190:
+    -    const-string p0, "MM-dd HH:mm:ss"
+    +    const-string p0, "yy/MM/dd.HH:mm"
+
+  Why also here: NoteManagerRepository.createNote has a fallback branch that
+  formats the current time with DateTimeFormat.getNoteNameDatePattern() when
+  the utility above returns null. Harmonising the pattern keeps every code
+  path consistent.

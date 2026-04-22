@@ -1,0 +1,77 @@
+Feature share-audio — "分享录音" long-press menu item
+======================================================
+
+Java reference: src/feature_share_audio/AudioShareHelper.java
+
+Key decision: the long-press "分享" button dispatches through
+WiskySystemApiManager.openShareDialog(...) → com.wisky.se01's system share
+activity (separate APK, we can't edit). The format row (Note/PDF/PNG/TXT)
+is bitmask-negotiated with that system app; a privately-assigned new bit
+would be ignored.
+
+Raw Android ACTION_SEND + application/zip on this device only resolves to
+Kindle / Bluetooth / GMS Nearby / OneNote / 1Password — *not* the OEM
+email / local storage / cloud / third-party chat targets the user wants.
+
+Workaround: bypass the format-picker half of Wisky's share dialog (keep
+its share-target half). Zip the audio ourselves, then call the other
+openShareDialog overload that accepts pre-built URIs:
+    openShareDialog(int appType, ArrayList<Uri> fileUris)
+which drives the same full-coverage share chooser.
+
+---------------------------------------------------------------
+NEW FILE: smali_classes2/com/wisky/modulenotemanager/ext/AudioShareHelper.smali
+
+Static run(SidebarNoteFragment):
+  · Iterates fragment.getMAdapter().getItems() → for each FileInfo with
+    isChecked(), lists files in NoteFileUtil.INSTANCE.buildNoteAudioDir(id).
+  · No audio → return silently.
+  · Builds zip via blankj ZipUtils.zipFiles(Collection, File) into
+    externalCacheDir ?: cacheDir.
+  · Wraps zip File in a Uri via blankj UriUtils.file2Uri (which uses the
+    pre-declared androidx FileProvider authority com.wisky.notewriter.provider
+    already in the manifest).
+  · ArrayList<Uri> → WiskySystemApiManager.Companion.openShareDialog(2, uris)
+    → fragment.startActivity(intent).
+
+---------------------------------------------------------------
+PATCH: smali_classes2/com/wisky/libnotewritercomponent/view/WiskyOperationView.smali
+
+  (1) Add constant
+    +.field public static final OPERATION_SHARE_AUDIO:Ljava/lang/String; = "OPERATION_SHARE_AUDIO"
+
+  (2) Append a second equals-check at the :goto_2 convergence point
+      (same post-switch pattern as Feature 2):
+    +    const-string v4, "OPERATION_SHARE_AUDIO"
+    +    invoke-virtual {v0, v4}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    +    move-result v4
+    +    if-eqz v4, :share_audio_skip
+    +    sget v4, R$drawable;->wisky_component_ic_svg_operation_share:I
+    +    invoke-virtual {v2, v4}, ImageView;->setImageResource(I)V
+    +    const-string v4, "分享录音"
+    +    invoke-virtual {v3, v4}, TextView;->setText(CharSequence;)V
+    +    :share_audio_skip
+
+      Reuses the existing share icon (wisky_component_ic_svg_operation_share).
+
+---------------------------------------------------------------
+PATCH: smali_classes2/com/wisky/modulenotemanager/note/SidebarNoteFragment.smali
+
+  Append a second element to the menu ArrayList at :goto_0:
+    +    const-string v2, "OPERATION_SHARE_AUDIO"
+    +    invoke-virtual {v1, v2}, Ljava/util/ArrayList;->add(Ljava/lang/Object;)Z
+
+---------------------------------------------------------------
+PATCH: smali_classes2/com/wisky/modulenotemanager/note/SidebarNoteFragment$showExcludeDeletedNoteOperation$3.smali
+
+  Second short-circuit in onOperationItemClick (right after the AI-rename
+  short-circuit added by Feature 2, before the original hashCode switch):
+
+    +    const-string v2, "OPERATION_SHARE_AUDIO"
+    +    invoke-virtual {v1, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z
+    +    move-result v2
+    +    if-eqz v2, :share_audio_passthrough
+    +    iget-object v2, v0, ...->this$0:SidebarNoteFragment;
+    +    invoke-static {v2}, ...->AudioShareHelper;->run(...)V
+    +    return-void
+    +    :share_audio_passthrough

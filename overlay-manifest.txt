@@ -1,0 +1,29 @@
+# Files committed under overlay/ that get copied over work/apktool-out/
+# after decompile. One path per line, relative to apktool-out.
+# Lines starting with # are ignored.
+
+# --- Feature 1: recording 10min -> 300min (+ UI label, +formatMillis fix) ---
+smali_classes2/com/wisky/libnotewritercomponent/audio/AudioRecorder.smali
+smali_classes2/com/wisky/libnotewritercomponent/audio/AudioRecorder$startProgressTimer$1$1.smali
+smali_classes2/com/wisky/libnotewritercomponent/audio/AudioUtil$Companion.smali
+res/layout/wisky_component_include_notetaking_toolbar.xml
+
+# --- Feature double-tap-hide: hide recording window on double-tap ---
+smali_classes2/com/wisky/libnotewritercomponent/view/toolbar/ToolbarLayout.smali
+smali_classes2/com/wisky/libnotewritercomponent/view/toolbar/DoubleTapHideListener.smali
+
+# --- Feature default-name: yy/MM/dd.HH:mm new-note auto name ---
+smali_classes2/com/wisky/libnotewritercomponent/utils/WiskyNoteNameUtil$Companion.smali
+smali_classes2/com/zhangcc/libccbase/DateTimeFormat$Companion.smali
+
+# --- Feature 2: AI smart rename menu entry ---
+smali_classes2/com/wisky/libnotewritercomponent/view/WiskyOperationView.smali
+smali_classes2/com/wisky/modulenotemanager/note/SidebarNoteFragment.smali
+smali_classes2/com/wisky/modulenotemanager/note/SidebarNoteFragment$showExcludeDeletedNoteOperation$3.smali
+smali_classes2/com/wisky/modulenotemanager/ext/AiRenameHelper.smali
+
+# --- Feature share-audio: "分享录音" in NoteTakingActivity "..." menu ---
+smali_classes2/com/wisky/modulenotemanager/ext/AudioShareHelper.smali
+smali_classes2/com/wisky/modulenotemanager/ext/AudioShareClickListener.smali
+smali_classes2/com/wisky/libnotewritercomponent/view/WiskyPopupWindowUtil$Companion.smali
+res/layout/wisky_component_notetaking_more.xml

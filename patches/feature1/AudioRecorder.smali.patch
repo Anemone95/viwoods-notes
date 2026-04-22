@@ -1,8 +1,38 @@
 Feature 1 — recording limit 10min → 300min
 ============================================
 
-Three edits. Two smali (runtime behavior) + one layout XML (UI label).
-Java reference: src/feature1_recording_limit/AudioRecorder.patch.java
+Four edits. Three smali (runtime behavior + UI formatter fix) + one layout
+XML (UI label). Java reference: src/feature1_recording_limit/AudioRecorder.patch.java
+
+---------------------------------------------------------------
+File: smali_classes2/com/wisky/libnotewritercomponent/audio/AudioUtil$Companion.smali
+
+Removes a "freeze seconds at 10min" dead branch that becomes visible once the
+cap is lifted. Original Java (formatMillis):
+
+    if (minutes == 10) {
+        return String.format("%02d:%02d", minutes, 0);   // "10:00" for 60s
+    }
+
+At :cond_0, drop the three comparison instructions and jump straight to the
+normal mm:ss path:
+
+  -    :cond_0
+  -    const-wide/16 v0, 0xa
+  -    cmp-long p2, v2, v0
+  -    const/4 v0, 0x2
+  -    .line 60
+  -    const-string v1, "%02d:%02d"
+  -    if-nez p2, :cond_1
+  +    :cond_0
+  +    const/4 v0, 0x2
+  +    .line 60
+  +    const-string v1, "%02d:%02d"
+  +    goto :cond_1
+
+The MM:00 branch body that used to fall through is now unreachable dead code
+(apktool assembles it fine).
+
 
 ---------------------------------------------------------------
 File: res/layout/wisky_component_include_notetaking_toolbar.xml

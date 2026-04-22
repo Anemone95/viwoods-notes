@@ -74,6 +74,16 @@ notes2/
   project.md                      # 本文件
 ```
 
+## ⚠ 工作区破坏操作
+
+`work/apktool-out/` 是**补丁的工作副本**,补丁就活在里面的 smali/资源文件里。
+以下命令会把它连同你的修改一并清掉,**不要在做 feature 期间跑**:
+
+- `make decompile` — 重新跑 `apktool d -f`,覆盖现有 `apktool-out/`。
+- `make distclean` — 连同 `jadx-out` 一起删掉整个 `work/`。
+
+正常迭代只需要 `make build` / `make install`,它们不会触发 decompile。
+
 ## 风险 & 待确认
 
 - 设备是否具备调用本地 AI 的系统 API?若没有,功能 (2) 需降级为远程调用或交互输入。
