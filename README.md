@@ -1,279 +1,325 @@
-# Viwoods Notes — 二次开发仓库
+# Viwoods Notes — Secondary Development
 
-给 Viwoods AiPaper 自带 `WiNote` 应用(`com.wisky.notewriter`)做功能修改。
-路线是**拉厂家 APK → 反编译 smali → 打补丁 → 重打包签名 → 替换系统分区
-原 APK** — 走的是"保留原签名系统应用身份"的路径,因此动 smali 而不
-repackage 成 user app。
+Secondary development for the Viwoods AiPaper's stock `WiNote` app
+(`com.wisky.notewriter`). The pipeline is:
+**pull the factory APK → apktool-decompile to smali → patch → repack & sign
+→ replace the system-partition APK in place.** We stay on the
+system-app path (same install location, same permission surface) by
+patching smali rather than repackaging as a user app, because the app
+holds signature-level permissions like `WRITE_SECURE_SETTINGS`.
 
-## 你需要知道的前置
+## Prerequisites
 
-**目标设备**
-- Viwoods AiPaper,SE01 / SE03 / SE05 / SE08 家族
-- `userdebug` + `ro.debuggable=1`(出厂已经是)
-- `adb root` 可用
-- `adb remount` 后 **重启过一次** → `/product` 是 overlayfs rw
-  (只需一次性准备)
+**Target device**
+- Viwoods AiPaper — SE01 / SE03 / SE05 / SE08 family
+- `userdebug` build, `ro.debuggable=1` (factory default)
+- `adb root` is allowed
+- `adb remount` run **once** then **one reboot** so `/product` becomes
+  overlayfs-rw (one-time setup per device)
 
-**开发机工具链**(macOS/Linux 都可以)
-| 工具 | 用途 | 本仓库预期版本 |
+**Host toolchain** (macOS or Linux)
+
+| Tool | Purpose | Tested version |
 |---|---|---|
-| `apktool` | 反编译 / 重打包 smali+资源 | 2.12.1 |
-| `jadx` | 反编译 smali 到 Java(仅用来搜 & 读) | 1.5.3 |
-| `apksigner` | v1..v4 签名 | Android SDK build-tools/35.0.0+ |
-| `zipalign` | 对齐 | 同上 |
-| `java` | 跑 apktool/jadx | JDK 17+ |
-| `adb` | 推 APK + 远程 root | platform-tools |
-| `git` | 版本控制 | — |
+| `apktool` | smali + resources decompile / rebuild | 2.12.1 |
+| `jadx` | decompile smali to Java (read-only, for searching) | 1.5.3 |
+| `apksigner` | APK v1..v4 signing | Android SDK `build-tools/35.0.0+` |
+| `zipalign` | aligned APK output | same |
+| `java` | runs apktool/jadx/signer | JDK 17+ |
+| `adb` | push APK, remote root | platform-tools |
+| `git` | version control | — |
 
-macOS 快速一键:
+One-liner on macOS:
 ```bash
 brew install apktool jadx
-# Android SDK 通过 Android Studio / brew install --cask android-commandlinetools
-# 然后在 Android Studio 里装 build-tools 35.0.0
+# Android SDK via Android Studio (install build-tools/35.0.0)
+# or: brew install --cask android-commandlinetools
 ```
 
-Makefile 自动找 `~/Library/Android/sdk/build-tools/35.0.0`,没有会回退到
-36.1.0 / 37.0.0 / 34.0.0。
+The Makefile looks for `~/Library/Android/sdk/build-tools/35.0.0` first,
+then falls back to 36.1.0 / 37.0.0 / 34.0.0.
 
-## 仓库结构
+## Repository layout
 
 ```
 notes2/
-├── README.md                       这个文件
-├── project.md                      原始功能需求描述
-├── Makefile                        一切 build/install 入口
-├── .gitignore                      忽略 work/,保留 backup/*.apk 和 overlay/
+├── README.md                       this file
+├── project.md                      original feature brief
+├── Makefile                        single entry point for build/install
+├── .gitignore                      tracks backup/*.apk and overlay/; ignores work/
 │
 ├── backup/
-│   ├── README.md                   如何从设备补回原版 APK
+│   ├── README.md                   how to re-pull the factory APK
 │   └── com.wisky.notewriter_v1.4.9_vc381.apk
-│                                   ← 厂家原版 APK(160MB,reproducibility 锚)
+│                                   ← factory APK (160 MB) — the reproducibility anchor
 │
-├── overlay-manifest.txt            受追踪的相对路径清单(16 个文件)
-├── overlay/                        修改/新增的 smali + res/layout,
-│                                   盖在 apktool 反编译结果之上
-│   ├── res/layout/…                2 个布局 xml
-│   └── smali_classes2/com/…       14 个 smali(有改的 + 全新注入的类)
+├── overlay-manifest.txt            tracked relative paths (16 entries)
+├── overlay/                        changed / newly-added smali + res/layout,
+│                                   stacked on top of a fresh apktool decompile
+│   ├── res/layout/…                2 XML layouts
+│   └── smali_classes2/com/…        14 smali files (edited + freshly injected)
 │
-├── src/                            **每个 feature 的 Java 设计稿**(不参
-│                                   与编译,只给人读,说明意图 + prompt +
-│                                   选择哪条路径)
+├── src/                            **per-feature Java design notes**
+│                                   (not compiled; pure reading material that
+│                                   explains intent / prompt / chosen path)
 │   ├── feature1_recording_limit/
 │   ├── feature2_ai_rename/
 │   ├── feature_default_name/
 │   ├── feature_double_tap_hide/
 │   └── feature_share_audio/
 │
-└── work/                           【.gitignore】全部自动生成,别手动放东西
-    ├── apktool-out/                apktool d 的结果 + 你迭代时直接改这里
-    │   └── .overlay-applied        stamp — 有这个就不再覆盖你的本地改动
-    ├── jadx-out/                   jadx d 的结果(只用来搜 Java 定义)
-    ├── release/                    zipalign + apksigner 的产物
-    └── ref-share/                  借用:com.wisky.share 的反编译
-                                    (为了分析分享行为,不参与 build)
+└── work/                           [gitignored] everything regenerable lives here
+    ├── apktool-out/                result of `apktool d` + your in-place edits
+    │   └── .overlay-applied        stamp — once present, local edits survive
+    ├── jadx-out/                   result of `jadx -d` (search / read only)
+    ├── release/                    zipalign'd + signed artefacts
+    └── ref-share/                  scratch: decompile of com.wisky.share for
+                                    analysing its share UI (not part of the build)
 ```
 
-### `overlay/` 是干什么的
+### What `overlay/` is for
 
-仓库只跟踪**和原版 APK 的差异**:`overlay/` 镜像 `work/apktool-out/` 的结构,
-但只包含 `overlay-manifest.txt` 里列出的那些**被改过或全新注入**的文件。
+Git only tracks the **delta** from the factory APK. `overlay/` mirrors
+the directory structure of `work/apktool-out/`, but only contains files
+listed in `overlay-manifest.txt` — the ones we edited or freshly
+injected.
 
-`make build` 首次运行时:
-1. 把 `backup/*.apk` 用 `apktool d -f` 解到 `work/apktool-out/`;
-2. 遍历 `overlay-manifest.txt`,把 `overlay/` 下每个路径 **cp** 到
-   `work/apktool-out/` 对应位置(覆盖);
-3. 放下一个 stamp `.overlay-applied`,以后 build 看到 stamp 就不再覆盖。
+On the first `make build`:
+1. `apktool d -f` unpacks `backup/*.apk` into `work/apktool-out/`;
+2. the Makefile walks `overlay-manifest.txt` and `cp`s each path from
+   `overlay/` over the matching path in `work/apktool-out/`;
+3. a `.overlay-applied` stamp is dropped so subsequent builds do not
+   re-copy (your in-place edits in `work/apktool-out/` won't be
+   clobbered).
 
-这样:
-- **Clone → make** 严格一致 — 生成的 4 个 DEX 和原开发机字节相同(已验证)
-- **开发迭代** — 直接改 `work/apktool-out/` 下的 smali,stamp 在就不被盖
-- **提交进度** — `make overlay-sync` 把那 16 个文件从 apktool-out 拷回
-  overlay/ 再 git commit
+Reproducibility: after `make distclean && make build` the four
+`classes*.dex` files come out **byte-identical** to the ones currently
+on the device. (The outer APK MD5 differs only because of ZIP entry
+timestamps and signing nonces — verified experimentally.)
 
-## 快速开始
+## Quick start
 
 ```bash
 git clone <this-repo>
 cd notes2
-make build           # 首次:apktool d + 盖 overlay + 打包签名  (~1-2 分钟)
-ls -lh work/release/app-signed.apk   # 产物,约 148MB
+make build           # first time: apktool d + overlay + repack + sign   (~1–2 min)
+ls -lh work/release/app-signed.apk         # output, ~148 MB
 ```
 
-设备准备(**每台设备只做一次**):
+**Device preparation — one-time per device:**
 ```bash
 adb root
-adb remount          # 输出 "Now reboot for settings to take effect"
-adb reboot           # 重启激活 overlayfs
-# 等设备回来后...
-adb shell mount | grep " /product "    # 应显示 rw
+adb remount          # prints "Now reboot for settings to take effect"
+adb reboot           # activates overlayfs
+# after the device comes back:
+adb shell mount | grep " /product "        # should show `rw`
 ```
 
-安装到设备(系统分区替换 + framework 重扫):
+**Install** (system-partition replace + framework rescan — no full
+reboot):
 ```bash
-make install         # 自动走:root + remount + push /product/app/… + stop/start
+make install         # root + remount + push /product/app/… + shell stop / start
 ```
 
-## 开发工作流
+## Development workflow
 
-### 常规迭代 — 动 smali
+### Iterating on smali
 
 ```bash
-# 1. 在 jadx-out 里搜 & 读 Java,定位要改的点
+# 1. Use jadx output to find and read the target Java
 grep -rn "someMethod" work/jadx-out/sources/…
 
-# 2. 在 apktool-out 里直接改 smali(不碰 overlay/)
+# 2. Edit the smali in work/apktool-out/ directly (do not touch overlay/)
 vim work/apktool-out/smali_classes2/…/Foo.smali
 
-# 3. 验证 + 装机
+# 3. Build + install
 make build && make install
 
-# 4. 满意 → 同步回 overlay
-make overlay-sync    # 只拷 manifest 里列的 16 个路径
-git diff overlay/    # 确认改动
+# 4. When happy, mirror changes back into overlay/
+make overlay-sync    # copies the paths in the manifest from apktool-out → overlay
+git diff overlay/    # verify
 git add overlay/ && git commit
 ```
 
-### 新增一个受追踪的文件
+### Adding a newly-tracked file
 
-需要同步两步:
+Two steps:
 ```bash
-# 1. 把新路径加到 manifest
+# 1. Append its path to the manifest
 echo "smali_classes2/com/example/MyNewClass.smali" >> overlay-manifest.txt
 
-# 2. 下次 overlay-sync 就会带上它
+# 2. Sync pulls it in
 make overlay-sync
 git add overlay-manifest.txt overlay/
 ```
 
-### 纯重构/重跑(从零)
+### Clean rebuild from scratch
 
 ```bash
-make distclean       # 删 work/(apktool-out + jadx-out + release)
-make build           # 从 backup APK 重来;覆盖 overlay,签名产出
-# DEX 理论上字节一致(已实证);外层 APK md5 会变
-# (apksigner nonce + zip entry 时间戳,不影响行为)
+make distclean       # deletes work/ (apktool-out + jadx-out + release)
+make build           # rebuilds everything from backup/*.apk + overlay/
+# The four classes*.dex files will be byte-identical to the previous build;
+# the outer APK MD5 will differ (apksigner nonce + ZIP entry timestamps)
+# which has zero runtime impact.
 ```
 
-### 直接在设备恢复原版 APK
+### Restoring the factory APK on the device
 
-调试把应用搞坏了想回原版:
+If you bricked the app and want to roll back to vanilla:
 ```bash
-# 原版 APK 还在 /product/app/… 里,只是被我们换了
-# 把 backup/ 下的原版推回去
 adb root
 adb push backup/com.wisky.notewriter_v1.4.9_vc381.apk \
-     /product/app/WiNote_release_1.4.9_2026-04-02_16-36-06/WiNote_release_1.4.9_2026-04-02_16-36-06.apk
+    /product/app/WiNote_release_1.4.9_2026-04-02_16-36-06/WiNote_release_1.4.9_2026-04-02_16-36-06.apk
 adb shell stop && adb shell start
 
-# 如果 user 0 的安装记录丢了(pm uninstall --user 0 误伤)
+# If `pm uninstall --user 0` ever orphaned user 0's install record:
 make fix-user
 ```
 
-## Makefile 目标一览
+## Makefile targets
 
-| 目标 | 做什么 |
+| Target | What it does |
 |---|---|
-| `make` / `make build` | 重打包 + zipalign + sign → `work/release/app-signed.apk` |
-| `make install` | 推到 `/product/app/…` + framework 重扫(不动物理重启) |
-| `make reinstall` | 同 `install`(别名) |
+| `make` / `make build` | repack + zipalign + sign → `work/release/app-signed.apk` |
+| `make install` | push to `/product/app/…` + framework rescan (no physical reboot) |
+| `make reinstall` | alias of `install` |
 | `make verify` | `apksigner verify --verbose` |
-| `make fix-user` | `pm install-existing` 修复 user 0 orphan 状态 |
-| `make remount` | 给一台新设备准备 overlayfs(之后需 reboot 一次) |
-| `make decompile` | 重新 `apktool d` + `jadx -d`(**会清 overlay stamp**) |
-| `make overlay-apply` | 手动触发 overlay → apktool-out(一般不用,自动) |
-| `make overlay-sync` | apktool-out → overlay,准备 git commit |
-| `make snapshot-feature1` / `feature2` / `feature3` / `default-name` / `double-tap-hide` | 复制当前签名 APK 为 `featureN.apk` checkpoint |
-| `make clean` | 删 `work/release` |
-| `make distclean` | 删整个 `work/`(apktool-out + jadx-out + release) |
-| `make print-patch-status` | 检查 Feature 1 的 smali 常量是否就位 |
+| `make fix-user` | `cmd package install-existing` — recover orphaned user 0 install |
+| `make remount` | one-time overlayfs prep for a new device (needs a reboot after) |
+| `make decompile` | rerun `apktool d` + `jadx -d` (**clears the overlay stamp**) |
+| `make overlay-apply` | force overlay → apktool-out (usually automatic) |
+| `make overlay-sync` | apktool-out → overlay (call before `git commit`) |
+| `make snapshot-feature1` / `feature2` / `feature3` / `default-name` / `double-tap-hide` | copy current signed APK aside as a per-feature checkpoint |
+| `make clean` | delete `work/release/` |
+| `make distclean` | delete all of `work/` |
+| `make print-patch-status` | sanity-check Feature 1 smali constants |
 
-变量覆盖:
+Variable overrides:
 ```bash
-make install APK=work/release/feature1.apk     # 装特定 snapshot
-make install DEVICE=S3AA4104M00152             # 多设备时指定
-make build PKG=com.wisky.notewriter            # 默认就是这个
+make install APK=work/release/feature1.apk     # install a specific snapshot
+make install DEVICE=S3AA4104M00152             # select device in multi-device setup
+make build PKG=com.wisky.notewriter            # already the default
 ```
 
-## 已实现的功能一览
+## Implemented features
 
-> 每个 feature 的高层意图写在 `src/feature_*/`.java 里(不编译,只当
-> 设计稿读);smali 级别的 "做了哪一步、用了哪几个寄存器、为什么这么
-> 切" 都直接写在对应 smali 文件的行内 `# --- Feature X ---` 注释里。
-> 无需专门的 patch 说明。
+> Each feature's high-level intent lives in `src/feature_*/*.java`
+> (design-doc only, not compiled). Smali-level reasoning — which
+> registers, which label, why this splice point — is captured inline in
+> the smali files themselves as `# --- Feature X ---` comments. No
+> separate patch files.
 
-| Feature | 动的文件(对照 `overlay-manifest.txt`) | 一句话描述 |
+| Feature | Touched files (see `overlay-manifest.txt`) | One-liner |
 |---|---|---|
-| **Feature 1** 录音扩容 | `AudioRecorder.smali` / `AudioRecorder$startProgressTimer$1$1.smali` / `AudioUtil$Companion.smali` / `wisky_component_include_notetaking_toolbar.xml` | 录音 10min → 300min;UI `/10'` → `/300'`;修上游把第 10 分钟秒位定 0 的 bug |
-| **Feature 2** AI 智能重命名 | `WiskyOperationView.smali` / `SidebarNoteFragment.smali` / `SidebarNoteFragment$showExcludeDeletedNoteOperation$3.smali` / `AiRenameHelper.smali` (new) | 长按笔记菜单新增 "AI 重命名",走 `WiskySystemApiManager.toAiPage(...)` 的 fire-and-forget AI 通道(和已有 AI 子按钮同一条路径) |
-| **feature default-name** 默认笔记名 | `WiskyNoteNameUtil$Companion.smali` / `DateTimeFormat$Companion.smali` | 新建笔记默认命名改为 `yy/MM/dd.HH:mm`(例 `26/04/22.22:05`),同分钟重名追加 ` (1)` |
-| **feature double-tap-hide** 双击隐藏录音浮窗 | `ToolbarLayout.smali` / `DoubleTapHideListener.smali` (new) | 录音进行时双击悬浮窗 → `setVisibility(GONE)`,录音不中断;下次点工具栏录音按钮重新唤出 |
-| **feature share-audio** 分享录音 | `WiskyPopupWindowUtil$Companion.smali` / `wisky_component_notetaking_more.xml` / `AudioShareHelper.smali` (new) / `AudioShareClickListener.smali` (new) | 打开笔记后 "..." 菜单新增 "分享录音";单文件直接分享 `.mp4`,多文件 zip → `<笔记名>.record.zip`;走 Wisky 的 `openShareDialog(URIs)` 通道覆盖邮箱/蓝牙/云盘/第三方目标 |
+| **Feature 1** Recording cap | `AudioRecorder.smali` / `AudioRecorder$startProgressTimer$1$1.smali` / `AudioUtil$Companion.smali` / `wisky_component_include_notetaking_toolbar.xml` | 10 min → 300 min cap; UI label `/10'` → `/300'`; fix upstream bug that froze seconds at minute 10 |
+| **Feature 2** AI smart rename | `WiskyOperationView.smali` / `SidebarNoteFragment.smali` / `SidebarNoteFragment$showExcludeDeletedNoteOperation$3.smali` / `AiRenameHelper.smali` (new) | "AI 重命名" entry in the note long-press menu; dispatches via `WiskySystemApiManager.toAiPage(...)` — the same fire-and-forget AI channel the stock AI sub-buttons use |
+| **feature default-name** | `WiskyNoteNameUtil$Companion.smali` / `DateTimeFormat$Companion.smali` | New notes default to `yy/MM/dd.HH:mm` (e.g. `26/04/22.22:05`); same-minute collisions get ` (1)`, ` (2)`… |
+| **feature double-tap-hide** | `ToolbarLayout.smali` / `DoubleTapHideListener.smali` (new) | Double-tap the recording floater → `setVisibility(GONE)`; recording keeps running; the next tap on the record button re-shows it |
+| **feature share-audio** | `WiskyPopupWindowUtil$Companion.smali` / `wisky_component_notetaking_more.xml` / `AudioShareHelper.smali` (new) / `AudioShareClickListener.smali` (new) | New "分享录音" row in the note "..." menu. One audio → share raw `.mp4`, many → zip as `<noteName>.record.zip`. Routed through Wisky's `openShareDialog(URIs)` so email / Bluetooth / local storage / cloud drive / third-party targets all appear |
 
-### 还在路上 / 有坑
+## TODO / known caveats
 
-- **Feature 3**(无边笔记,滑动动态延长页面)— 未开始。
-- **分享录音标题** — 系统分享弹窗标题写死 "分享格式为 PDF",那个文本在
-  `com.wisky.share` 的 layout 里(`@string/share_share_multi_file`),不是
-  Intent extra。目前只能接受或单独补丁 share.apk。
-- **云盘上传进度对话框文件名显示 "unknown"** — `com.wisky.share` 的
-  `MultiFileShareActivity` 在转发到下一级 activity 时硬编码 `fileName = null`,
-  不是我们能从 Intent 修的。最终存到网盘的文件名是对的(它走 FileProvider
-  的 on-disk name)。同样需要补丁 share.apk 才能彻底修。
+### Feature 3 — endless (borderless) page mode
+Not started. Spec from `project.md`: a toggleable mode where swiping
+down at page-bottom dynamically extends the canvas height instead of
+paginating; swiping down above page-bottom scrolls normally; swiping up
+reveals earlier content. Will require changes in the note canvas view
+and paging manager.
 
-## 把 APK 装不进去 / 装坏了 / 紧急回滚
+### `com.wisky.share` bugs (separate APK)
 
-**`INSTALL_FAILED_UPDATE_INCOMPATIBLE`**:试图用 `adb install` 替换签名
-不同的系统应用。**永远不要用 `adb install`**,永远走 `make install`。
+Two cosmetic issues surface in the share flow that are **not fixable
+from within `com.wisky.notewriter`** — the defects live in
+`com.wisky.share`'s layouts and smali:
 
-**应用打不开 / 图标消失**:大概率 `pm uninstall --user 0` 把 user 0 卸掉了
-(跑过一次早期 Makefile 或自己手误)。跑:
-```bash
-make fix-user
+1. **Share dialog title always says "分享格式为PDF"**.
+   `activity_share_multi_file.xml` in the share APK has a static
+   `TextView` bound to `@string/share_share_multi_file` whose value is
+   the literal "分享格式为PDF" / "Share PDF" / etc. in every locale.
+   No Intent extra controls it.
+
+2. **Cloud-drive upload progress dialog shows filename as "unknown"**
+   even when the uploaded file itself is named correctly.
+   `MultiFileShareActivity` hardcodes `fileName = null` when forwarding
+   to the per-target handlers (cloud / email / BT / transfer):
+   ```java
+   // MultiFileShareActivity.java:682, 1259
+   OpenOtherAppUtils.shareToCloudDriveApp$default(..., arrayList, (String) null, ...);
+   ```
+   `ShareSendingActivity` then reads `share_file_name` from its intent,
+   finds nothing, and renders "unknown".
+
+Both are fixable by adding **`com.wisky.share` as a second tracked APK**
+in this repo, mirroring the existing layout:
+
 ```
-会对 `com.wisky.notewriter` 调 `cmd package install-existing`,从 `/product/app`
-直接再挂回 user 0,不需要 APK。
+backup/
+├── com.wisky.notewriter_v1.4.9_vc381.apk          (existing, 160 MB)
+└── com.wisky.share_v1.9.86_20260409.apk           (add: ~20 MB,
+                                                    already on disk
+                                                    under work/ref-share/)
 
-**想彻底回到厂家原版** — 把 `backup/` 里的 APK 推回去(见上面
-"直接在设备恢复原版 APK" 小节)。
+overlay-share-manifest.txt                          (add)
+overlay-share/                                      (add)
 
-**`adb remount` 提示 "verity is enabled"**:没重启激活 overlayfs。
-`adb reboot` 完事儿。
+# Makefile additions:
+#   share-build, share-install, share-decompile,
+#   share-overlay-apply, share-overlay-sync
+#   SYSTEM_APK_SHARE := /product/app/share_1.9.86_20260409/share_1.9.86_20260409.apk
+```
 
-## 设计选择备忘
+With that scaffolding in place each fix is 2–3 lines of smali:
+- For (2): replace `null` with `getIntent().getStringExtra("share_file_name")`
+  at both call sites.
+- For (1): add a new i18n string `share_share_audio_zip` ("分享录音为
+  ZIP" / "Share recordings as ZIP" / …) to `com.wisky.share`'s strings
+  resources and patch the layout `TextView` to use it when our caller
+  passes a matching flag via intent extra.
 
-- **为什么不整个 `work/apktool-out/` 丢进 git** — 465MB,`apktool` 版本
-  不同产生的 smali 行号/局部名可能微变,commit 历史会爆炸,而原版
-  任何时候都能从 `backup/*.apk` 1:1 重构。只存"我们改的那 16 个文件"
-  最划算。
-- **为什么 `overlay/` 里是完整文件不是 diff** — diff 带行号对 smali 很
-  脆弱(apktool 可能换标签命名),整文件覆盖简单稳妥,1.7MB 值得。
-- **为什么不改 `public.xml` / `R$id.smali` 注册新 id** — 同步改两三个
-  地方容易漏。改用 `android:tag` + `findViewWithTag` 完全跳过资源 id
-  登记系统(见 `wisky_component_notetaking_more.xml` 里的
-  `tag="ll_share_audio"`)。
-- **为什么不给 OnClickListener 搞一个复杂的 synthetic lambda** — 直接
-  手写一个 `final class implements View.OnClickListener` 的 smali 文件,
-  30 行搞定,调试友好(见 `DoubleTapHideListener.smali`)。
-- **为什么走 "make install" 替换系统分区而不是 rename 包名装 user app** — 
-  `com.wisky.notewriter` 申请了 `WRITE_SECURE_SETTINGS`(signature|privileged
-  级),降级成 user app 会丢权限。`/product/app` 下替换 +
-  `stop/start` 重扫是最干净的迭代方式,~15 秒出结果,不用整机重启。
+Deferred for now; the happy path (files reach their destination with
+the correct name on the server side) already works.
 
-## 一些命名/常识坑
+## Design decisions worth remembering
 
-| 看到 Java 里是 | 真实 smali 里是 |
+- **Don't track `work/apktool-out/` in git.** 465 MB, shifting smali
+  labels between apktool versions, and reconstructible any time from
+  `backup/*.apk`. Only the 16-file delta (`overlay/`, ~1.7 MB) is
+  worth versioning.
+- **Overlay stores whole files, not diffs.** Line-number-based patches
+  are brittle against smali label renames. A full-file copy is 1.7 MB
+  and robust.
+- **Avoid registering new resource IDs via `@+id/x`.** That requires
+  synchronised edits to `public.xml` and `R$id.smali` — easy to
+  desync. Use `android:tag="…"` + `findViewWithTag` instead (see
+  `wisky_component_notetaking_more.xml`'s `tag="ll_share_audio"`).
+- **Hand-write `View.OnClickListener` impls as fresh smali files**
+  rather than trying to fabricate synthetic Kotlin lambdas. A 30-line
+  `final class implements View.OnClickListener` is easier to read and
+  debug (see `DoubleTapHideListener.smali`).
+- **Replace the system-partition APK instead of renaming to a user
+  app.** `com.wisky.notewriter` holds `WRITE_SECURE_SETTINGS` (a
+  signature|privileged permission) — downgrading to a user install
+  loses it. Push to `/product/app/…` + `adb shell stop && start` is
+  the cleanest iteration path (~15 s per cycle, no full device
+  reboot).
+
+## Smali gotchas cheat-sheet
+
+| What jadx shows in Java | What's actually in smali |
 |---|---|
-| `Foo.INSTANCE.bar()` (Kotlin **object**) | `sget-object Lcom/…/Foo;->INSTANCE:Lcom/…/Foo;` |
-| `Foo.INSTANCE.bar()` (jadx 给 Kotlin **companion** 起的假名) | `sget-object Lcom/…/Foo;->Companion:Lcom/…/Foo$Companion;` |
-| `const/4 v0, 0x8` | **不合法**,4-bit 字面只能 -8..7,用 `const/16` |
-| 私有 field 跨包 `iget-object` | 大概率 `IllegalAccessError`,改加个 public getter 或用 Kotlin 生成的 `access$get…$p` |
-| 给 new `@+id/x` 加到 layout | 得同步改 `public.xml` + `R$id.smali` 才能被 smali 找到;用 `android:tag` 更省心 |
+| `Foo.INSTANCE.bar()` — Kotlin `object` | `sget-object Lcom/…/Foo;->INSTANCE:Lcom/…/Foo;` |
+| `Foo.INSTANCE.bar()` — jadx pretending a Kotlin **companion** is a singleton | `sget-object Lcom/…/Foo;->Companion:Lcom/…/Foo$Companion;` |
+| `const/4 v0, 0x8` | **illegal** — 4-bit signed literal is -8..7; use `const/16` |
+| Cross-package `iget-object` on a `private` field | likely throws `IllegalAccessError`; add a public getter or use the Kotlin-synthesised `access$get…$p` accessor |
+| A new `@+id/x` in a layout | needs matching entries in `public.xml` and `R$id.smali`; prefer `android:tag="x"` + `findViewWithTag` |
 
-## 外部帮手库(已经在 APK 里,可以直接 invoke-static)
+## Pre-bundled helper libs (call them via `invoke-static`, already in the APK)
 
-- `com.blankj.utilcode.util.UriUtils.file2Uri(File) : Uri` — 用它拿 FileProvider URI
-  (authority 已经在 manifest 声明)
-- `com.blankj.utilcode.util.ZipUtils.zipFiles(Collection<File>, File) : boolean` — 打 zip
-- `com.blankj.utilcode.util.FileUtils.copy(File, File) : boolean` — 拷文件
-- `com.wisky.modulesystemapi.WiskySystemApiManager.Companion` — 起 AI 页 / 分享 /
-  OCR / 手势控制等,很多现成入口可抄用
+- `com.blankj.utilcode.util.UriUtils.file2Uri(File) : Uri` — returns a
+  FileProvider URI (the authority is already declared in the manifest)
+- `com.blankj.utilcode.util.ZipUtils.zipFiles(Collection<File>, File) : boolean` — zip
+- `com.blankj.utilcode.util.FileUtils.copy(File, File) : boolean` — file copy
+- `com.wisky.modulesystemapi.WiskySystemApiManager.Companion` — entry
+  points for launching the AI page, system share dialog, OCR, gesture
+  controls, screen rotation, etc. Many ready-made entry points to
+  piggyback on.
