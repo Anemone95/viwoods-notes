@@ -92,10 +92,19 @@ On the first `make build`:
    re-copy (your in-place edits in `work/apktool-out/` won't be
    clobbered).
 
-Reproducibility: after `make distclean && make build` the four
-`classes*.dex` files come out **byte-identical** to the ones currently
-on the device. (The outer APK MD5 differs only because of ZIP entry
-timestamps and signing nonces — verified experimentally.)
+Reproducibility: two independent `make distclean && make build`
+cycles (on any host, no caches) produce **byte-identical
+`classes*.dex`** files. The outer APK MD5 still differs between runs
+because of ZIP entry timestamps and signing nonces — those are ZIP
+metadata, not code.
+
+Note: the rebuilt DEX bytes are **not** the same as the factory
+DEX bytes in `backup/*.apk`. Google's d8/r8 compiler and apktool's
+smali assembler lay out constant pools, method tables, and debug
+info differently — the semantics match (the smali is round-tripped
+losslessly) but the on-disk byte layout differs. "Reproducible"
+here means *across independent rebuilds of this repo*, not
+*equal to the factory artifact*.
 
 ## Quick start
 
