@@ -20327,6 +20327,12 @@
     iput-object v4, p0, Lcom/wisky/rjwrite/RjHandWriting;->backgroundBitmapCanvas:Landroid/graphics/Canvas;
 
     :feature3_resize_done
+    # Feature 3: reinit translateAllIds to match the grown mBitmap height.
+    # Otherwise PathClipPen (area-crop) indexes translateAllIds[bitmap_y] and
+    # throws ArrayIndexOutOfBoundsException for y >= original screen height.
+    # initTranslate() is a no-op if isOpenTranslate=false (PDF notes), safe.
+    invoke-virtual {p0}, Lcom/wisky/rjwrite/RjHandWriting;->initTranslate()V
+
     return-void
 .end method
 

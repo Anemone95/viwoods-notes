@@ -36,4 +36,6 @@ smali_classes2/com/wisky/libnotewritercomponent/handwriting/BaseHandWriteView.sm
 smali_classes2/com/wisky/libnotewritercomponent/handwriting/WiskyHandWriteView.smali
 smali_classes2/com/wisky/libnotewritercomponent/view/endless/VerticalEndlessScrollView.smali
 smali_classes2/com/wisky/modulenotetaking/NoteTakingActivity$loadCurrentPageHandWritingBitmap$4$1.smali
+smali_classes2/com/wisky/modulenotetaking/NoteTakingActivity$initTool$11.smali
+smali_classes2/com/wisky/modulenotetaking/NoteTakingActivity$initTool$12.smali
 res/layout/wisky_notetaking_activity_note_taking.xml

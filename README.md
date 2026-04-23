@@ -229,11 +229,27 @@ make build PKG=com.wisky.notewriter            # already the default
 ## TODO / known caveats
 
 ### Feature 3 — endless (borderless) page mode
-Not started. Spec from `project.md`: a toggleable mode where swiping
-down at page-bottom dynamically extends the canvas height instead of
-paginating; swiping down above page-bottom scrolls normally; swiping up
-reveals earlier content. Will require changes in the note canvas view
-and paging manager.
+Shipped in commit `f5289f9`. All notes are endless by default; swiping
+up at page-bottom extends the underlying `mBitmap` by one screen
+(capped at 5×). Scroll-aware pen + split-sign scrollY trick for the
+`resetFastShow` coroutine vs. `onNativeTouchEvent`. See
+`src/feature3_endless_page/architecture.md` for the full journey.
+
+**Known caveats (unfixed):**
+- **Eraser real-time preview is flaky after scroll.** The pen SDK's
+  EPD fast-preview path reads `mBitmap02` (screen-sized buffer) at
+  what it assumes are screen-local coords, but after a scroll the
+  live `writeLine02` draws at view-local coords that don't match the
+  region `resetFastShow`'s coroutine populated. Tried: per-frame
+  `feature3FastSync` hook on `onScrollChanged`, sync `feature3SyncMBitmap02`,
+  sign-flip experiments — all partial wins. Root cause is deeper than
+  a single field, likely a native EPD overlay cached at init. For now
+  eraser commits are correct (they hit `mBitmap` via `pen.writeLine`),
+  just the live preview lags until `onDraw` refreshes the full view.
+- Thumbnail / PDF export don't follow the extended canvas — they
+  capture only the first-screen region.
+- Template / top-layer / bottom-layer bitmaps don't extend with the
+  canvas either. Extended region shows white.
 
 ### `com.wisky.share` bugs (separate APK)
 
