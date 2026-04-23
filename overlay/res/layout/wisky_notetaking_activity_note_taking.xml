@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.wisky.libnotewritercomponent.view.root.WiskyRootLayout android:id="@id/fl_root" android:tag="layout/wisky_notetaking_activity_note_taking_0" android:layout_width="fill_parent" android:layout_height="fill_parent" app:layout_constraintBottom_toBottomOf="parent" app:layout_constraintEnd_toEndOf="parent" app:layout_constraintStart_toStartOf="parent" app:layout_constraintTop_toTopOf="parent"
+  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <com.wisky.libnotewritercomponent.view.template.WiskyTemplateView android:id="@id/template" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+    <com.wisky.libnotewritercomponent.view.imagebox.WiskyImageBoxLayout android:id="@id/imagebox_layout" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+    <com.wisky.libnotewritercomponent.view.base.BitmapView android:id="@id/bottom_layer" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+    <com.wisky.libnotewritercomponent.view.endless.VerticalEndlessScrollView android:layout_width="fill_parent" android:layout_height="fill_parent" android:fillViewport="true" android:overScrollMode="always">
+        <com.wisky.libnotewritercomponent.handwriting.WiskyHandWriteView android:id="@id/handwrite" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+    </com.wisky.libnotewritercomponent.view.endless.VerticalEndlessScrollView>
+    <com.wisky.libnotewritercomponent.view.base.BitmapView android:id="@id/top_layer" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+    <com.wisky.libnotewritercomponent.view.inputbox.WiskyInputBoxLayout android:id="@id/inputbox_layout" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+    <com.wisky.libnotewritercomponent.view.drag.WiskyDragLayout android:id="@id/drag_layout" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+    <com.wisky.libnotewritercomponent.view.toolbar.ToolbarLayout android:id="@id/tool" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+    <com.wisky.libnotewritercomponent.view.WiskyOperationLayout android:id="@id/operation_layout" android:layout_width="fill_parent" android:layout_height="fill_parent" />
+</com.wisky.libnotewritercomponent.view.root.WiskyRootLayout>
