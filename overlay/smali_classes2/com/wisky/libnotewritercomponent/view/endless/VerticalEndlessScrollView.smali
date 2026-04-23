@@ -434,8 +434,8 @@
 
     iget v2, v2, Landroid/util/DisplayMetrics;->heightPixels:I
 
-    # maxBitmapH = screenH * 10
-    mul-int/lit8 v8, v2, 0xa
+    # maxBitmapH = screenH * 5
+    mul-int/lit8 v8, v2, 0x5
 
     invoke-virtual {v7}, Lcom/wisky/libnotewritercomponent/handwriting/BaseHandWriteView;->getMBitmapHeight()I
 

@@ -8348,7 +8348,7 @@
 .end method
 
 .method protected onLayout(ZIIII)V
-    .locals 0
+    .locals 1
 
     .line 199
     invoke-super/range {p0 .. p5}, Landroid/view/View;->onLayout(ZIIII)V
@@ -8441,6 +8441,18 @@
     invoke-virtual {p0}, Lcom/wisky/rjwrite/NoteView;->getHeight()I
 
     move-result p5
+
+    # Feature 3: clamp height passed to rectifyScreen to screen height.
+    # After grow, getHeight() returns the tall mBitmap size (e.g. 10x screen_h),
+    # which makes the pen SDK treat the entire tall bitmap as visible — breaks
+    # eraser's dirty-rect / EPD hardware overlay which expects screen-bounded h.
+    iget v0, p0, Lcom/wisky/rjwrite/NoteView;->mScreenHeight:I
+
+    if-le p5, v0, :feature3_height_ok
+
+    move p5, v0
+
+    :feature3_height_ok
 
     invoke-virtual {p1, p2, p3, p4, p5}, Lcom/wisky/rjwrite/RjHandWriting;->rectifyScreen(IIII)V
 

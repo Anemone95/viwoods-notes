@@ -2600,16 +2600,27 @@
 
     int-to-float v1, v1
 
-    # pen math: bitmap_y = event.y - currentScrollY; pass -scrollY.
-    neg-int v2, p1
-
-    int-to-float v2, v2
+    # Step 1: feature3Rectify with +scrollY so the async resetFastShow coroutine
+    # snapshots currentScrollY=+scrollY; its srcRect = mBitmap[scrollY..scrollY+H]
+    # correctly fills mBitmap02 with the current visible region (eraser real-time
+    # preview needs mBitmap02 to hold current content).
+    int-to-float v2, p1
 
     const/high16 v3, 0x3f800000    # 1.0f
 
     const/4 v4, 0x0
 
     invoke-virtual {v0, v1, v2, v3, v4}, Lcom/wisky/manager/RjWriteManager;->feature3Rectify(FFFLandroid/graphics/Matrix;)V
+
+    # Step 2: override RjHandWriting.currentScrollY = -scrollY so onNativeTouchEvent's
+    # bitmap_y = event.y - currentScrollY = event.y + scrollY lands pen writes at
+    # the correct tall-mBitmap position. This override does NOT affect the coroutine
+    # snapshot above (it captured +scrollY already).
+    neg-int v2, p1
+
+    int-to-float v2, v2
+
+    invoke-virtual {v0, v2}, Lcom/wisky/manager/RjWriteManager;->feature3SetScrollYOnly(F)V
 
     :feature3_bhw_skip_scroll
     return-void
