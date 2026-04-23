@@ -32,6 +32,8 @@ res/layout/wisky_component_notetaking_more.xml
 smali_classes2/com/wisky/manager/RjWriteManager.smali
 smali_classes2/com/wisky/rjwrite/NoteView.smali
 smali_classes2/com/wisky/rjwrite/RjHandWriting.smali
+smali_classes2/com/wisky/rjwrite/pen/EraserPen.smali
+smali_classes2/com/wisky/rjwrite/pen/BackEraserPen.smali
 smali_classes2/com/wisky/libnotewritercomponent/handwriting/BaseHandWriteView.smali
 smali_classes2/com/wisky/libnotewritercomponent/handwriting/WiskyHandWriteView.smali
 smali_classes2/com/wisky/libnotewritercomponent/view/endless/VerticalEndlessScrollView.smali

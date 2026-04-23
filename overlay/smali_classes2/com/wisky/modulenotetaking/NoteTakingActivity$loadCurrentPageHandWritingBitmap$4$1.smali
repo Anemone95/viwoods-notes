@@ -185,6 +185,11 @@
 
     invoke-virtual {p0}, Lcom/wisky/libnotewritercomponent/handwriting/WiskyHandWriteView;->afterPageChange()V
 
+    # Feature 3: re-register mBitmap02 with ENoteSetting native after load.
+    # Without this, reopen-note's eraser live-preview silently fails because
+    # native still holds the stale mBitmap02 pointer from the previous page.
+    invoke-virtual {p0}, Lcom/wisky/libnotewritercomponent/handwriting/WiskyHandWriteView;->feature3ReregisterEpdBitmap()V
+
     return-void
 .end method
 

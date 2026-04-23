@@ -1431,3 +1431,20 @@
     :f3_wskip_scroll
     return-void
 .end method
+
+.method public feature3ReregisterEpdBitmap()V
+    .locals 1
+
+    iget-object v0, p0, Lcom/wisky/libnotewritercomponent/handwriting/WiskyHandWriteView;->iWiskyHandWrite:Lcom/wisky/libnotewritercomponent/handwriting/IWiskyHandWrite;
+
+    instance-of p0, v0, Lcom/wisky/libnotewritercomponent/handwriting/BaseHandWriteView;
+
+    if-eqz p0, :f3_wskip_rereg
+
+    check-cast v0, Lcom/wisky/libnotewritercomponent/handwriting/BaseHandWriteView;
+
+    invoke-virtual {v0}, Lcom/wisky/libnotewritercomponent/handwriting/BaseHandWriteView;->feature3ReregisterEpdBitmap()V
+
+    :f3_wskip_rereg
+    return-void
+.end method

@@ -2675,3 +2675,29 @@
     :f3ss_ret
     return-void
 .end method
+
+.method public feature3SyncMBitmap02(FFF)V
+    .locals 1
+
+    iget-object v0, p0, Lcom/wisky/manager/RjWriteManager;->mNoteView:Lcom/wisky/rjwrite/NoteView;
+
+    if-eqz v0, :f3_sync02_rwm_ret
+
+    invoke-virtual {v0, p1, p2, p3}, Lcom/wisky/rjwrite/NoteView;->feature3SyncMBitmap02(FFF)V
+
+    :f3_sync02_rwm_ret
+    return-void
+.end method
+
+.method public feature3ReregisterEpdBitmap()V
+    .locals 1
+
+    iget-object v0, p0, Lcom/wisky/manager/RjWriteManager;->mNoteView:Lcom/wisky/rjwrite/NoteView;
+
+    if-eqz v0, :f3_reg_rwm_ret
+
+    invoke-virtual {v0}, Lcom/wisky/rjwrite/NoteView;->feature3ReregisterEpdBitmap()V
+
+    :f3_reg_rwm_ret
+    return-void
+.end method

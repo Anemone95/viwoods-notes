@@ -20447,6 +20447,48 @@
     return v0
 .end method
 
+# Synchronously fill mBitmap02 = mBitmap[scrollY..scrollY+screenH]. The eraser's
+# live-preview CLEARs mBitmap02; if mBitmap02 hasn't been populated with the
+# currently-visible mBitmap region (async resetFastShow hasn't completed yet),
+# the CLEAR is a no-op on a blank pixel and user sees no change until the full
+# onDraw refresh.
+.method public final feature3SyncMBitmap02(FFF)V
+    .locals 7
+
+    iget-object v0, p0, Lcom/wisky/rjwrite/RjHandWriting;->mBitmap:Landroid/graphics/Bitmap;
+    if-eqz v0, :feature3_sync02_ret
+    iget-object v1, p0, Lcom/wisky/rjwrite/RjHandWriting;->mBitmap02:Landroid/graphics/Bitmap;
+    if-eqz v1, :feature3_sync02_ret
+    iget-object v2, p0, Lcom/wisky/rjwrite/RjHandWriting;->mCanvas02:Landroid/graphics/Canvas;
+    if-eqz v2, :feature3_sync02_ret
+
+    float-to-int v3, p1
+    float-to-int v4, p2
+    invoke-virtual {v1}, Landroid/graphics/Bitmap;->getWidth()I
+    move-result v5
+    add-int/2addr v5, v3
+    invoke-virtual {v1}, Landroid/graphics/Bitmap;->getHeight()I
+    move-result v6
+    add-int/2addr v6, v4
+    new-instance p1, Landroid/graphics/Rect;
+    invoke-direct {p1, v3, v4, v5, v6}, Landroid/graphics/Rect;-><init>(IIII)V
+
+    const/4 v3, 0x0
+    invoke-virtual {v1}, Landroid/graphics/Bitmap;->getWidth()I
+    move-result v4
+    invoke-virtual {v1}, Landroid/graphics/Bitmap;->getHeight()I
+    move-result v5
+    new-instance p2, Landroid/graphics/Rect;
+    invoke-direct {p2, v3, v3, v4, v5}, Landroid/graphics/Rect;-><init>(IIII)V
+
+    invoke-virtual {p0}, Lcom/wisky/rjwrite/RjHandWriting;->getPaintSRC()Landroid/graphics/Paint;
+    move-result-object p3
+    invoke-virtual {v2, v0, p1, p2, p3}, Landroid/graphics/Canvas;->drawBitmap(Landroid/graphics/Bitmap;Landroid/graphics/Rect;Landroid/graphics/Rect;Landroid/graphics/Paint;)V
+
+    :feature3_sync02_ret
+    return-void
+.end method
+
 # Override RjHandWriting.currentScrollY (and pen.currentScrollY for good measure).
 # onNativeTouchEvent reads RjHandWriting.currentScrollY to compute bitmap_y =
 # event.y - currentScrollY, so it needs -actual_scrollY. resetFastShow takes its

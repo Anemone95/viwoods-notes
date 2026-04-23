@@ -10003,3 +10003,24 @@
     :f3ss_ret
     return-void
 .end method
+
+.method public final feature3ReregisterEpdBitmap()V
+    .locals 0
+
+    invoke-direct {p0}, Lcom/wisky/rjwrite/NoteView;->setWritingJavaBitmap()V
+
+    return-void
+.end method
+
+.method public final feature3SyncMBitmap02(FFF)V
+    .locals 1
+
+    iget-object v0, p0, Lcom/wisky/rjwrite/NoteView;->rjHandWriting:Lcom/wisky/rjwrite/RjHandWriting;
+
+    if-eqz v0, :f3_sync02_nv_ret
+
+    invoke-virtual {v0, p1, p2, p3}, Lcom/wisky/rjwrite/RjHandWriting;->feature3SyncMBitmap02(FFF)V
+
+    :f3_sync02_nv_ret
+    return-void
+.end method

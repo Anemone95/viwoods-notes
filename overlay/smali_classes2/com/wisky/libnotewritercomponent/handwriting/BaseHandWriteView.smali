@@ -2582,6 +2582,29 @@
 
 
 # --- Feature 3 MVP: endless canvas public hooks ---
+
+# Re-register mBitmap02 with ENoteSetting native (EPD overlay). Pen SDK's
+# private setWritingJavaBitmap caches the bitmap pointer; after a page
+# reopen or scroll the cache is stale, and the EPD fast-preview path appears
+# silent (eraser draws to mBitmap02 but user sees nothing until full redraw).
+# Callable from load-complete / scroll-end / onResume hooks.
+.method public feature3ReregisterEpdBitmap()V
+    .locals 2
+
+    iget-object v0, p0, Lcom/wisky/libnotewritercomponent/handwriting/BaseHandWriteView;->writeManager:Lcom/wisky/writebasemodle/WriteViewManagerImp;
+
+    instance-of v1, v0, Lcom/wisky/manager/RjWriteManager;
+
+    if-eqz v1, :f3_rereg_bhw_skip
+
+    check-cast v0, Lcom/wisky/manager/RjWriteManager;
+
+    invoke-virtual {v0}, Lcom/wisky/manager/RjWriteManager;->feature3ReregisterEpdBitmap()V
+
+    :f3_rereg_bhw_skip
+    return-void
+.end method
+
 # Called by VerticalEndlessScrollView when user scrolls, to keep the pen's
 # currentScrollY in sync so new strokes land at the right bitmap Y offset.
 
@@ -2612,10 +2635,23 @@
 
     invoke-virtual {v0, v1, v2, v3, v4}, Lcom/wisky/manager/RjWriteManager;->feature3Rectify(FFFLandroid/graphics/Matrix;)V
 
-    # Step 2: override RjHandWriting.currentScrollY = -scrollY so onNativeTouchEvent's
+    # Step 2: synchronously populate mBitmap02 with current visible mBitmap region.
+    int-to-float v2, p1
+
+    invoke-virtual {v0, v1, v2, v3}, Lcom/wisky/manager/RjWriteManager;->feature3SyncMBitmap02(FFF)V
+
+    # Step 2b: re-register mBitmap02 with ENoteSetting native (EPD overlay).
+    # Pen SDK's setWritingJavaBitmap cached bitmap pointer + location at init
+    # (or last pen-down). After scroll / rectify, that cache is stale, so the
+    # EPD fast-preview path appears to do nothing even though writeLine02 is
+    # painting into mBitmap02 correctly. Explicit re-register forces the native
+    # side to pick up the current mBitmap02 + mLocationScreen.
+    invoke-virtual {v0}, Lcom/wisky/manager/RjWriteManager;->feature3ReregisterEpdBitmap()V
+
+    # Step 3: override RjHandWriting.currentScrollY = -scrollY so onNativeTouchEvent's
     # bitmap_y = event.y - currentScrollY = event.y + scrollY lands pen writes at
     # the correct tall-mBitmap position. This override does NOT affect the coroutine
-    # snapshot above (it captured +scrollY already).
+    # snapshot from step 1 (it captured +scrollY already).
     neg-int v2, p1
 
     int-to-float v2, v2

@@ -148,12 +148,17 @@ FORCE: ;
 # WiNote lives in /product/app and holds WRITE_SECURE_SETTINGS — it must stay
 # a system app. We overwrite the factory APK, then soft-restart the framework
 # so PackageManagerService re-scans /product/app.
-install: build system-push framework-restart
-	@echo ">>> waiting for device to come back ..."
-	@$(ADB) wait-for-device
-	@sleep 3
+install: build system-push app-restart
 	@$(ADB) shell dumpsys package $(PKG) 2>/dev/null | grep -E "versionName|codePath" | head -3 || true
 	@echo ">>> installed."
+
+# Stop the app so the next launch picks up the new APK. This avoids the
+# framework reboot which was slow and dropped adb for ~10s. PackageManager
+# already treats /product/app APKs as pre-installed; on next launch the new
+# code path is used.
+app-restart:
+	@echo ">>> force-stop $(PKG)"
+	$(ADB) shell am force-stop $(PKG) || true
 
 system-push: build
 	$(ADB) root >/dev/null
