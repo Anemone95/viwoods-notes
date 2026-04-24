@@ -21,6 +21,10 @@ smali_classes2/com/wisky/libnotewritercomponent/view/WiskyOperationView.smali
 smali_classes2/com/wisky/modulenotemanager/note/SidebarNoteFragment.smali
 smali_classes2/com/wisky/modulenotemanager/note/SidebarNoteFragment$showExcludeDeletedNoteOperation$3.smali
 smali_classes2/com/wisky/modulenotemanager/ext/AiRenameHelper.smali
+smali_classes2/com/wisky/modulenotemanager/ext/AiRenameHelper$Rcv.smali
+smali_classes2/com/wisky/modulenotemanager/ext/AiRenameHelper$RcvAuto.smali
+smali_classes2/com/wisky/modulenotemanager/ext/AiRenameHelper$Sender.smali
+smali_classes2/com/wisky/modulenotetaking/NoteTakingActivity.smali
 
 # --- Feature share-audio: "分享录音" in NoteTakingActivity "..." menu ---
 smali_classes2/com/wisky/modulenotemanager/ext/AudioShareHelper.smali

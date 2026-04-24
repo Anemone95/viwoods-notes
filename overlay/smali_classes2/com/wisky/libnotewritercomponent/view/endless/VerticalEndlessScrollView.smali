@@ -235,7 +235,7 @@
 
 
 .method public onTouchEvent(Landroid/view/MotionEvent;)Z
-    .locals 10
+    .locals 11
 
     # debug log
     const-string v0, "Feature3"
@@ -490,6 +490,37 @@
     :no_clamp
     invoke-virtual {v7, v9}, Lcom/wisky/libnotewritercomponent/handwriting/BaseHandWriteView;->growMBitmap(I)V
 
+    # --- auto-rename hook: first-page extension ---
+    # Walk getContext()'s ContextWrapper chain until we find the Activity
+    # (on Android 10+ Views can hand back a ContextThemeWrapper, not the
+    # Activity directly — bare instance-of NoteTakingActivity then misses).
+    invoke-virtual {p0}, Landroid/view/View;->getContext()Landroid/content/Context;
+
+    move-result-object v10
+
+    :unwrap_loop
+    instance-of v0, v10, Lcom/wisky/modulenotetaking/NoteTakingActivity;
+
+    if-nez v0, :have_activity
+
+    instance-of v0, v10, Landroid/content/ContextWrapper;
+
+    if-eqz v0, :skip_ai_rename
+
+    check-cast v10, Landroid/content/ContextWrapper;
+
+    invoke-virtual {v10}, Landroid/content/ContextWrapper;->getBaseContext()Landroid/content/Context;
+
+    move-result-object v10
+
+    goto :unwrap_loop
+
+    :have_activity
+    check-cast v10, Lcom/wisky/modulenotetaking/NoteTakingActivity;
+
+    invoke-static {v10}, Lcom/wisky/modulenotemanager/ext/AiRenameHelper;->onEndlessGrow(Lcom/wisky/modulenotetaking/NoteTakingActivity;)V
+
+    :skip_ai_rename
     # Update content view layout height so scroll range increases
     invoke-virtual {v3}, Landroid/view/View;->getLayoutParams()Landroid/view/ViewGroup$LayoutParams;
 
