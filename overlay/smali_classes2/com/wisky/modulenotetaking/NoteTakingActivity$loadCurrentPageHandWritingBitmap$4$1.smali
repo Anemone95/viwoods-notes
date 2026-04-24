@@ -185,10 +185,15 @@
 
     invoke-virtual {p0}, Lcom/wisky/libnotewritercomponent/handwriting/WiskyHandWriteView;->afterPageChange()V
 
-    # Feature 3: re-register mBitmap02 with ENoteSetting native after load.
-    # Without this, reopen-note's eraser live-preview silently fails because
-    # native still holds the stale mBitmap02 pointer from the previous page.
-    invoke-virtual {p0}, Lcom/wisky/libnotewritercomponent/handwriting/WiskyHandWriteView;->feature3ReregisterEpdBitmap()V
+    # Feature 3: full state resync on note-load. setEndlessScrollY(0) runs the
+    # complete endless-page pipeline — feature3Rectify(0), feature3SyncMBitmap02,
+    # feature3ReregisterEpdBitmap, feature3SetScrollYOnly(0). Without this,
+    # reopen-note's eraser live-preview silently fails because native holds a
+    # stale mBitmap02 pointer + the pen's currentScrollY retains leftover state
+    # from the previous session.
+    const/4 v0, 0x0
+
+    invoke-virtual {p0, v0}, Lcom/wisky/libnotewritercomponent/handwriting/WiskyHandWriteView;->setEndlessScrollY(I)V
 
     return-void
 .end method

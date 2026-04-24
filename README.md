@@ -236,16 +236,21 @@ up at page-bottom extends the underlying `mBitmap` by one screen
 `src/feature3_endless_page/architecture.md` for the full journey.
 
 **Known caveats (unfixed):**
-- **Eraser real-time preview is flaky after scroll.** The pen SDK's
-  EPD fast-preview path reads `mBitmap02` (screen-sized buffer) at
-  what it assumes are screen-local coords, but after a scroll the
-  live `writeLine02` draws at view-local coords that don't match the
-  region `resetFastShow`'s coroutine populated. Tried: per-frame
-  `feature3FastSync` hook on `onScrollChanged`, sync `feature3SyncMBitmap02`,
-  sign-flip experiments — all partial wins. Root cause is deeper than
-  a single field, likely a native EPD overlay cached at init. For now
-  eraser commits are correct (they hit `mBitmap` via `pen.writeLine`),
-  just the live preview lags until `onDraw` refreshes the full view.
+- **Eraser real-time preview fails in the same session a note is
+  grown.** The pen SDK's EPD fast-preview path (`writeLine02` →
+  `mBitmap02` → native overlay) assumes `mBitmap` and `mBitmap02`
+  are the same size. After `growMBitmap` extends `mBitmap` beyond
+  1×screen, the CLEAR lands on a mismatched row of the still
+  screen-sized `mBitmap02` and the preview goes silent. Closing
+  and reopening the note recovers (load-lambda calls
+  `setEndlessScrollY(0)` which rebinds the pen SDK state cleanly),
+  so persistent flakiness is gone — only the in-session window
+  between "first grow" and "next reopen" loses live preview.
+  Attempts to resize `mBitmap02` alongside `mBitmap` restored
+  preview but made the pen sluggish (2× blit bandwidth on every
+  stroke). Eraser commits themselves are always correct (they hit
+  `mBitmap` via `pen.writeLine`); only the EPD live-preview lags
+  until the next `onDraw`.
 - Thumbnail / PDF export don't follow the extended canvas — they
   capture only the first-screen region.
 - Template / top-layer / bottom-layer bitmaps don't extend with the
