@@ -229,28 +229,27 @@ make build PKG=com.wisky.notewriter            # already the default
 ## TODO / known caveats
 
 ### Feature 3 — endless (borderless) page mode
-Shipped in commit `f5289f9`. All notes are endless by default; swiping
-up at page-bottom extends the underlying `mBitmap` by one screen
-(capped at 5×). Scroll-aware pen + split-sign scrollY trick for the
-`resetFastShow` coroutine vs. `onNativeTouchEvent`. See
-`src/feature3_endless_page/architecture.md` for the full journey.
+Shipped in commits `f5289f9` (initial) and `1e016f2` (in-session
+eraser). All notes are endless by default; swiping up at page-bottom
+extends the underlying `mBitmap` by one screen (capped at **3×**;
+larger sizes blew past Android's ~100 MB `drawBitmap` ceiling). See
+`src/feature3_endless_page/architecture.md` for the design and
+`src/feature3_endless_page/ResetFastShowGrowFix.patch.java` for the
+debugging journey on the eraser fix.
 
-**Known caveats (unfixed):**
-- **Eraser real-time preview fails in the same session a note is
-  grown.** The pen SDK's EPD fast-preview path (`writeLine02` →
-  `mBitmap02` → native overlay) assumes `mBitmap` and `mBitmap02`
-  are the same size. After `growMBitmap` extends `mBitmap` beyond
-  1×screen, the CLEAR lands on a mismatched row of the still
-  screen-sized `mBitmap02` and the preview goes silent. Closing
-  and reopening the note recovers (load-lambda calls
-  `setEndlessScrollY(0)` which rebinds the pen SDK state cleanly),
-  so persistent flakiness is gone — only the in-session window
-  between "first grow" and "next reopen" loses live preview.
-  Attempts to resize `mBitmap02` alongside `mBitmap` restored
-  preview but made the pen sluggish (2× blit bandwidth on every
-  stroke). Eraser commits themselves are always correct (they hit
-  `mBitmap` via `pen.writeLine`); only the EPD live-preview lags
-  until the next `onDraw`.
+**The in-session eraser fix (1e016f2):** previous attempts (re-register
+mBitmap02, sync grown blit, scrollY-aware src rect) were all real
+preconditions but none of them was the actual root cause. Logcat A/B
+with `persist.eink.debug=0xff` showed every Java/native call we could
+see was identical between the broken case and the cross-page-recovered
+case — except cross-page navigation incidentally toggled
+`native_is_handwriting_enable: 0 → 1`. That edge is what unsticks the
+EPD eraser overlay. We replay the toggle in-place (via a one-shot
+`Runnable.post(EndlessKickHandwritingRunnable)` gated on
+`didGrowThisGesture` so it fires once per grow, after the user's
+finger has fully released).
+
+**Remaining caveats:**
 - Thumbnail / PDF export don't follow the extended canvas — they
   capture only the first-screen region.
 - Template / top-layer / bottom-layer bitmaps don't extend with the

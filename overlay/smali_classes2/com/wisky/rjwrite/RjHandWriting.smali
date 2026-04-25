@@ -14489,8 +14489,6 @@
     :cond_6
     invoke-virtual {p0}, Lcom/wisky/rjwrite/RjHandWriting;->initTranslate()V
 
-    # Option C reverted: feature3EnsureAlpha8 call removed — ALPHA_8 slowed eraser
-
     return-void
 .end method
 
@@ -20376,97 +20374,6 @@
     return-void
 .end method
 
-# Convert mBitmap / mLastBitmap / backgroundBitmap to ALPHA_8 at current size.
-# No-op if mBitmap is null or already ALPHA_8. mBitmap02 (live-stroke buffer
-# for EPD native overlay) and resultBackgroundBitmap stay ARGB_8888.
-.method public final feature3EnsureAlpha8()V
-    .locals 7
-
-    iget-object v0, p0, Lcom/wisky/rjwrite/RjHandWriting;->mBitmap:Landroid/graphics/Bitmap;
-
-    if-eqz v0, :feature3_ea_done
-
-    # early-out if mBitmap already ALPHA_8
-    invoke-virtual {v0}, Landroid/graphics/Bitmap;->getConfig()Landroid/graphics/Bitmap$Config;
-
-    move-result-object v3
-
-    sget-object v4, Landroid/graphics/Bitmap$Config;->ALPHA_8:Landroid/graphics/Bitmap$Config;
-
-    if-eq v3, v4, :feature3_ea_done
-
-    invoke-virtual {v0}, Landroid/graphics/Bitmap;->getWidth()I
-
-    move-result v1
-
-    invoke-virtual {v0}, Landroid/graphics/Bitmap;->getHeight()I
-
-    move-result v2
-
-    # -- mBitmap --
-    sget-object v3, Landroid/graphics/Bitmap$Config;->ALPHA_8:Landroid/graphics/Bitmap$Config;
-
-    invoke-static {v1, v2, v3}, Landroid/graphics/Bitmap;->createBitmap(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;
-
-    move-result-object v3
-
-    const/4 v4, 0x0
-
-    invoke-virtual {v3, v4}, Landroid/graphics/Bitmap;->eraseColor(I)V
-
-    new-instance v4, Landroid/graphics/Canvas;
-
-    invoke-direct {v4, v3}, Landroid/graphics/Canvas;-><init>(Landroid/graphics/Bitmap;)V
-
-    const/4 v5, 0x0
-
-    int-to-float v5, v5
-
-    const/4 v6, 0x0
-
-    invoke-virtual {v4, v0, v5, v5, v6}, Landroid/graphics/Canvas;->drawBitmap(Landroid/graphics/Bitmap;FFLandroid/graphics/Paint;)V
-
-    iput-object v3, p0, Lcom/wisky/rjwrite/RjHandWriting;->mBitmap:Landroid/graphics/Bitmap;
-
-    iput-object v4, p0, Lcom/wisky/rjwrite/RjHandWriting;->mCanvas:Landroid/graphics/Canvas;
-
-    # -- mLastBitmap (undo reset) --
-    sget-object v3, Landroid/graphics/Bitmap$Config;->ALPHA_8:Landroid/graphics/Bitmap$Config;
-
-    invoke-static {v1, v2, v3}, Landroid/graphics/Bitmap;->createBitmap(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;
-
-    move-result-object v3
-
-    iput-object v3, p0, Lcom/wisky/rjwrite/RjHandWriting;->mLastBitmap:Landroid/graphics/Bitmap;
-
-    new-instance v4, Landroid/graphics/Canvas;
-
-    invoke-direct {v4, v3}, Landroid/graphics/Canvas;-><init>(Landroid/graphics/Bitmap;)V
-
-    iput-object v4, p0, Lcom/wisky/rjwrite/RjHandWriting;->mLastBitmapCanvas:Landroid/graphics/Canvas;
-
-    # -- backgroundBitmap (only if exists) --
-    iget-object v5, p0, Lcom/wisky/rjwrite/RjHandWriting;->backgroundBitmap:Landroid/graphics/Bitmap;
-
-    if-eqz v5, :feature3_ea_done
-
-    sget-object v3, Landroid/graphics/Bitmap$Config;->ALPHA_8:Landroid/graphics/Bitmap$Config;
-
-    invoke-static {v1, v2, v3}, Landroid/graphics/Bitmap;->createBitmap(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;
-
-    move-result-object v3
-
-    iput-object v3, p0, Lcom/wisky/rjwrite/RjHandWriting;->backgroundBitmap:Landroid/graphics/Bitmap;
-
-    new-instance v4, Landroid/graphics/Canvas;
-
-    invoke-direct {v4, v3}, Landroid/graphics/Canvas;-><init>(Landroid/graphics/Bitmap;)V
-
-    iput-object v4, p0, Lcom/wisky/rjwrite/RjHandWriting;->backgroundBitmapCanvas:Landroid/graphics/Canvas;
-
-    :feature3_ea_done
-    return-void
-.end method
 
 .method public final feature3GetMBitmapHeight()I
     .locals 1
@@ -20485,48 +20392,6 @@
     const/4 v0, 0x0
 
     return v0
-.end method
-
-# Synchronously fill mBitmap02 = mBitmap[scrollY..scrollY+screenH]. The eraser's
-# live-preview CLEARs mBitmap02; if mBitmap02 hasn't been populated with the
-# currently-visible mBitmap region (async resetFastShow hasn't completed yet),
-# the CLEAR is a no-op on a blank pixel and user sees no change until the full
-# onDraw refresh.
-.method public final feature3SyncMBitmap02(FFF)V
-    .locals 7
-
-    iget-object v0, p0, Lcom/wisky/rjwrite/RjHandWriting;->mBitmap:Landroid/graphics/Bitmap;
-    if-eqz v0, :feature3_sync02_ret
-    iget-object v1, p0, Lcom/wisky/rjwrite/RjHandWriting;->mBitmap02:Landroid/graphics/Bitmap;
-    if-eqz v1, :feature3_sync02_ret
-    iget-object v2, p0, Lcom/wisky/rjwrite/RjHandWriting;->mCanvas02:Landroid/graphics/Canvas;
-    if-eqz v2, :feature3_sync02_ret
-
-    float-to-int v3, p1
-    float-to-int v4, p2
-    invoke-virtual {v1}, Landroid/graphics/Bitmap;->getWidth()I
-    move-result v5
-    add-int/2addr v5, v3
-    invoke-virtual {v1}, Landroid/graphics/Bitmap;->getHeight()I
-    move-result v6
-    add-int/2addr v6, v4
-    new-instance p1, Landroid/graphics/Rect;
-    invoke-direct {p1, v3, v4, v5, v6}, Landroid/graphics/Rect;-><init>(IIII)V
-
-    const/4 v3, 0x0
-    invoke-virtual {v1}, Landroid/graphics/Bitmap;->getWidth()I
-    move-result v4
-    invoke-virtual {v1}, Landroid/graphics/Bitmap;->getHeight()I
-    move-result v5
-    new-instance p2, Landroid/graphics/Rect;
-    invoke-direct {p2, v3, v3, v4, v5}, Landroid/graphics/Rect;-><init>(IIII)V
-
-    invoke-virtual {p0}, Lcom/wisky/rjwrite/RjHandWriting;->getPaintSRC()Landroid/graphics/Paint;
-    move-result-object p3
-    invoke-virtual {v2, v0, p1, p2, p3}, Landroid/graphics/Canvas;->drawBitmap(Landroid/graphics/Bitmap;Landroid/graphics/Rect;Landroid/graphics/Rect;Landroid/graphics/Paint;)V
-
-    :feature3_sync02_ret
-    return-void
 .end method
 
 # Override RjHandWriting.currentScrollY (and pen.currentScrollY for good measure).

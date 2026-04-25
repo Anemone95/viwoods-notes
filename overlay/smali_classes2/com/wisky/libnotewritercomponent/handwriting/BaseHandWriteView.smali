@@ -2623,10 +2623,13 @@
 
     int-to-float v1, v1
 
-    # Step 1: feature3Rectify with +scrollY so the async resetFastShow coroutine
-    # snapshots currentScrollY=+scrollY; its srcRect = mBitmap[scrollY..scrollY+H]
-    # correctly fills mBitmap02 with the current visible region (eraser real-time
-    # preview needs mBitmap02 to hold current content).
+    # Step 1: feature3Rectify with +scrollY. NoteView.rectify wraps the null
+    # matrix arg into `new Matrix(null)` (identity, non-null), then calls
+    # RjHandWriting.rectify which writes that matrix to the field BEFORE
+    # invoking resetFastShowContentBitmap. resetFastShowContentBitmap therefore
+    # takes the matrix path (synchronous) on the very first call, where our
+    # grown-canvas patch blits mBitmap[scrollY..scrollY+H] -> mBitmap02 via
+    # Matrix.setTranslate. mBitmap02 ends the call holding the visible window.
     int-to-float v2, p1
 
     const/high16 v3, 0x3f800000    # 1.0f
@@ -2635,23 +2638,19 @@
 
     invoke-virtual {v0, v1, v2, v3, v4}, Lcom/wisky/manager/RjWriteManager;->feature3Rectify(FFFLandroid/graphics/Matrix;)V
 
-    # Step 2: synchronously populate mBitmap02 with current visible mBitmap region.
-    int-to-float v2, p1
-
-    invoke-virtual {v0, v1, v2, v3}, Lcom/wisky/manager/RjWriteManager;->feature3SyncMBitmap02(FFF)V
-
-    # Step 2b: re-register mBitmap02 with ENoteSetting native (EPD overlay).
-    # Pen SDK's setWritingJavaBitmap cached bitmap pointer + location at init
-    # (or last pen-down). After scroll / rectify, that cache is stale, so the
-    # EPD fast-preview path appears to do nothing even though writeLine02 is
-    # painting into mBitmap02 correctly. Explicit re-register forces the native
-    # side to pick up the current mBitmap02 + mLocationScreen.
+    # Step 2: re-register mBitmap02 with ENoteSetting native (EPD overlay).
+    # Forces native to pick up the current mBitmap02 + mLocationScreen. Kept
+    # as a safety net even though the handwriting-toggle in
+    # VerticalEndlessScrollView post-grow is what actually unsticks the
+    # eraser overlay; this reregister is cheap and protects scroll-only
+    # paths that don't grow.
     invoke-virtual {v0}, Lcom/wisky/manager/RjWriteManager;->feature3ReregisterEpdBitmap()V
 
-    # Step 3: override RjHandWriting.currentScrollY = -scrollY so onNativeTouchEvent's
-    # bitmap_y = event.y - currentScrollY = event.y + scrollY lands pen writes at
-    # the correct tall-mBitmap position. This override does NOT affect the coroutine
-    # snapshot from step 1 (it captured +scrollY already).
+    # Step 3: override RjHandWriting.currentScrollY = -scrollY so
+    # onNativeTouchEvent computes bitmap_y = event.y - currentScrollY =
+    # event.y + scrollY, landing pen writes at the correct row of the tall
+    # mBitmap. Done last so it doesn't affect the matrix-path blit in step 1
+    # (which uses the +scrollY method parameter, not the field).
     neg-int v2, p1
 
     int-to-float v2, v2

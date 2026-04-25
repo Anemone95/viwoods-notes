@@ -8443,9 +8443,10 @@
     move-result p5
 
     # Feature 3: clamp height passed to rectifyScreen to screen height.
-    # After grow, getHeight() returns the tall mBitmap size (e.g. 10x screen_h),
-    # which makes the pen SDK treat the entire tall bitmap as visible — breaks
-    # eraser's dirty-rect / EPD hardware overlay which expects screen-bounded h.
+    # After grow, getHeight() returns the tall mBitmap size (up to 3× screen_h
+    # per project.md cap), which makes the pen SDK treat the entire tall
+    # bitmap as visible — breaks eraser's dirty-rect / EPD hardware overlay
+    # which expects screen-bounded h.
     iget v0, p0, Lcom/wisky/rjwrite/NoteView;->mScreenHeight:I
 
     if-le p5, v0, :feature3_height_ok
@@ -10009,18 +10010,5 @@
 
     invoke-direct {p0}, Lcom/wisky/rjwrite/NoteView;->setWritingJavaBitmap()V
 
-    return-void
-.end method
-
-.method public final feature3SyncMBitmap02(FFF)V
-    .locals 1
-
-    iget-object v0, p0, Lcom/wisky/rjwrite/NoteView;->rjHandWriting:Lcom/wisky/rjwrite/RjHandWriting;
-
-    if-eqz v0, :f3_sync02_nv_ret
-
-    invoke-virtual {v0, p1, p2, p3}, Lcom/wisky/rjwrite/RjHandWriting;->feature3SyncMBitmap02(FFF)V
-
-    :f3_sync02_nv_ret
     return-void
 .end method
