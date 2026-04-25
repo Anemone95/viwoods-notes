@@ -101,7 +101,12 @@ decompile: $(APKTOOL_OUT)/apktool.yml $(JADX_OUT)/sources
 # into work/apktool-out/. Fires automatically on first build after
 # decompile; subsequent in-place edits in apktool-out are NOT clobbered
 # because the stamp file is still present.
-$(OVERLAY_STAMP): $(APKTOOL_OUT)/apktool.yml $(OVERLAY_MANIFEST)
+# Make stamp depend on every overlay/ file listed in the manifest, so editing
+# a smali under overlay/ retriggers the apply. Without this, edits silently
+# ship with stale apktool-out copies.
+OVERLAY_FILES := $(shell grep -v '^\s*\(\#\|$$\)' $(OVERLAY_MANIFEST) 2>/dev/null | sed 's|^|$(OVERLAY)/|')
+
+$(OVERLAY_STAMP): $(APKTOOL_OUT)/apktool.yml $(OVERLAY_MANIFEST) $(OVERLAY_FILES)
 	@echo ">>> applying overlay -> $(APKTOOL_OUT)"
 	@while IFS= read -r path; do \
 	    case "$$path" in "#"*|"") continue ;; esac; \

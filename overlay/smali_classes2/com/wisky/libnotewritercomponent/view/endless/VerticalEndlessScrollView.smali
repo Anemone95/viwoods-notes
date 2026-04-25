@@ -611,6 +611,27 @@
 
     invoke-virtual {v0, v1}, Lcom/wisky/libnotewritercomponent/handwriting/BaseHandWriteView;->setEndlessScrollY(I)V
 
+    # Feature 3: after a grow gesture only, kick the native handwriting
+    # pipeline (toggle is_handwriting_enable false→true). Cross-page
+    # navigation does this naturally via save/load and is what restores
+    # eraser real-time overlay after a grow — see logcat A/B comparison.
+    # We do it ONCE per grow (not on every scroll) and post-pend it to the
+    # looper so it runs after super.onTouchEvent returns and the user's
+    # finger has fully released, avoiding mid-stroke pipeline disruption.
+    iget-boolean v0, p0, Lcom/wisky/libnotewritercomponent/view/endless/VerticalEndlessScrollView;->didGrowThisGesture:Z
+
+    if-eqz v0, :skip_sync
+
+    const/4 v0, 0x0
+
+    iput-boolean v0, p0, Lcom/wisky/libnotewritercomponent/view/endless/VerticalEndlessScrollView;->didGrowThisGesture:Z
+
+    new-instance v0, Lcom/wisky/libnotewritercomponent/view/endless/EndlessKickHandwritingRunnable;
+
+    invoke-direct {v0}, Lcom/wisky/libnotewritercomponent/view/endless/EndlessKickHandwritingRunnable;-><init>()V
+
+    invoke-virtual {p0, v0}, Landroid/view/View;->post(Ljava/lang/Runnable;)Z
+
     :skip_sync
     invoke-super {p0, p1}, Landroid/widget/ScrollView;->onTouchEvent(Landroid/view/MotionEvent;)Z
 

@@ -17411,6 +17411,57 @@
 
     .line 1072
     :cond_2
+    # --- Feature 3 grown-canvas fix ---
+    # Original matrix path does Canvas(mBitmap02).drawBitmap(mBitmap, matrix,
+    # paint) — when mBitmap is taller than mBitmap02 (after grow), this
+    # 1:1 copies the top of mBitmap into mBitmap02 (clipped by canvas size),
+    # ignoring scrollY. Use a translate-Matrix so the slice aligned to
+    # scrollY is what reaches mBitmap02. Use the (scrollX, scrollY) METHOD
+    # PARAMETERS p1/p2 — not this.currentScrollX/Y, which setEndlessScrollY
+    # has flipped to -scrollY for onNativeTouchEvent's pen-y math.
+    iget-object v2, p0, Lcom/wisky/rjwrite/RjHandWriting;->mBitmap:Landroid/graphics/Bitmap;
+
+    if-eqz v2, :feature3_matrix_skip_fix
+
+    iget-object v3, p0, Lcom/wisky/rjwrite/RjHandWriting;->mBitmap02:Landroid/graphics/Bitmap;
+
+    if-eqz v3, :feature3_matrix_skip_fix
+
+    invoke-virtual {v2}, Landroid/graphics/Bitmap;->getHeight()I
+
+    move-result v4
+
+    invoke-virtual {v3}, Landroid/graphics/Bitmap;->getHeight()I
+
+    move-result v5
+
+    if-le v4, v5, :feature3_matrix_skip_fix
+
+    new-instance v4, Landroid/graphics/Canvas;
+
+    invoke-direct {v4, v3}, Landroid/graphics/Canvas;-><init>(Landroid/graphics/Bitmap;)V
+
+    new-instance v5, Landroid/graphics/Matrix;
+
+    invoke-direct {v5}, Landroid/graphics/Matrix;-><init>()V
+
+    neg-float v6, p1
+
+    neg-float v7, p2
+
+    invoke-virtual {v5, v6, v7}, Landroid/graphics/Matrix;->setTranslate(FF)V
+
+    invoke-virtual {p0}, Lcom/wisky/rjwrite/RjHandWriting;->getPaintSRC()Landroid/graphics/Paint;
+
+    move-result-object v6
+
+    invoke-virtual {v4, v2, v5, v6}, Landroid/graphics/Canvas;->drawBitmap(Landroid/graphics/Bitmap;Landroid/graphics/Matrix;Landroid/graphics/Paint;)V
+
+    return-void
+
+    :feature3_matrix_skip_fix
+    # --- end Feature 3 fix; original matrix path follows ---
+
     const-string p1, "resetFastShowContentBitmapJob matrix"
 
     const-string p2, "cccccc"
@@ -20307,24 +20358,13 @@
 
     iput-object v4, p0, Lcom/wisky/rjwrite/RjHandWriting;->mLastBitmapCanvas:Landroid/graphics/Canvas;
 
-    # backgroundBitmap: resize only if exists (will get repopulated by rectify)
-    iget-object v5, p0, Lcom/wisky/rjwrite/RjHandWriting;->backgroundBitmap:Landroid/graphics/Bitmap;
-
-    if-eqz v5, :feature3_resize_done
-
-    sget-object v3, Landroid/graphics/Bitmap$Config;->ARGB_8888:Landroid/graphics/Bitmap$Config;
-
-    invoke-static {v1, p1, v3}, Landroid/graphics/Bitmap;->createBitmap(IILandroid/graphics/Bitmap$Config;)Landroid/graphics/Bitmap;
-
-    move-result-object v3
-
-    iput-object v3, p0, Lcom/wisky/rjwrite/RjHandWriting;->backgroundBitmap:Landroid/graphics/Bitmap;
-
-    new-instance v4, Landroid/graphics/Canvas;
-
-    invoke-direct {v4, v3}, Landroid/graphics/Canvas;-><init>(Landroid/graphics/Bitmap;)V
-
-    iput-object v4, p0, Lcom/wisky/rjwrite/RjHandWriting;->backgroundBitmapCanvas:Landroid/graphics/Canvas;
+    # Feature 3: do NOT grow backgroundBitmap. Keep it at 1× screen height
+    # so the bitmap registered with native (setWritingJavaBackgroundBitmap)
+    # matches mBitmap02's dimensions. native_set_javaBackgroundBitmap on a
+    # 5120-tall bitmap while mBitmap02 is 2560-tall breaks the EPD overlay
+    # eraser path silently — writes still render real-time, but PorterDuff
+    # CLEAR (eraser) does not, because native composites against the
+    # mismatched-size background buffer.
 
     :feature3_resize_done
     # Feature 3: reinit translateAllIds to match the grown mBitmap height.
