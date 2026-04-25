@@ -185,6 +185,30 @@
 
     invoke-virtual {p0}, Lcom/wisky/libnotewritercomponent/handwriting/WiskyHandWriteView;->afterPageChange()V
 
+    # Feature 3 fix: reset VerticalEndlessScrollView.scrollY to 0 on page-load.
+    # Cross-page navigation (page1 grown -> page2 -> page1) does NOT pass through
+    # the scroll view, so its scrollY persists from the previous page's state.
+    # setEndlessScrollY(0) below resets BasePen.currentScrollY to 0 — but if
+    # ScrollView.scrollY != 0, the user sees mBitmap[scrollY..scrollY+H] while
+    # the pen pipeline thinks scrollY=0. Eraser preview (writeLine02 uses raw
+    # event.y on screen-sized mBitmap02) appears to work, but the commit
+    # (writeLine on mBitmap row event.y - 0 = event.y) lands on the wrong row;
+    # the visible stroke at mBitmap[scrollY + event.y] survives the next refresh.
+    invoke-virtual {p0}, Lcom/wisky/libnotewritercomponent/handwriting/WiskyHandWriteView;->getParent()Landroid/view/ViewParent;
+
+    move-result-object v1
+
+    instance-of v2, v1, Lcom/wisky/libnotewritercomponent/view/endless/VerticalEndlessScrollView;
+
+    if-eqz v2, :feature3_skip_scroll_reset
+
+    check-cast v1, Lcom/wisky/libnotewritercomponent/view/endless/VerticalEndlessScrollView;
+
+    const/4 v2, 0x0
+
+    invoke-virtual {v1, v2, v2}, Landroid/view/View;->scrollTo(II)V
+
+    :feature3_skip_scroll_reset
     # Feature 3: full state resync on note-load. setEndlessScrollY(0) runs the
     # complete endless-page pipeline — feature3Rectify(0), feature3SyncMBitmap02,
     # feature3ReregisterEpdBitmap, feature3SetScrollYOnly(0). Without this,
