@@ -37,6 +37,7 @@ smali_classes2/com/wisky/manager/RjWriteManager.smali
 smali_classes2/com/wisky/rjwrite/NoteView.smali
 smali_classes2/com/wisky/rjwrite/RjHandWriting.smali
 smali_classes2/com/wisky/rjwrite/RjHandWriting$resetFastShowContentBitmap$2.smali
+smali_classes2/com/wisky/rjwrite/RjScalableLayout.smali
 smali_classes2/com/wisky/rjwrite/pen/EraserPen.smali
 smali_classes2/com/wisky/rjwrite/pen/BackEraserPen.smali
 smali_classes2/com/wisky/libtemplate/WiskyTemplateManager.smali
