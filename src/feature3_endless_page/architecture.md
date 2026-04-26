@@ -57,8 +57,15 @@ WiskyHandWriteView (FrameLayout, MATCH_PARENT×MATCH_PARENT)
 - `RjScalableLayout.scaleHigth = screenHeight × scaleFactor`,`scaleFactor`
   在 `RjScaleListener` 里被 `coerceIn(1.0f, 2.0f)` —— 内置最多 2× 滚动,
   靠缩放,不是靠多屏内容。
-- `com.wisky.rjwrite.RjScalableLayout` 存在于 APK 但**没有被笔记流程任
-  何地方使用**;Wisky 很可能也撞到了同样的墙。
+- `com.wisky.rjwrite.RjScalableLayout` **是被使用的**(早期断言"没被使
+  用"是错的) —— `RjWriteManager.initWriteView`(line 1215)总是把
+  `NoteView` 包进 `RjScalableLayout` 再挂到 container 上。它的
+  `currentScrollY/scaleFactor` 在 feature 3 流程下保持 (0, 1)(我们不
+  用 wisky 的缩放/平移)。但它的 `dispatchDraw` 每帧都会调
+  `mNoteView.rectify(0, 0, 1, null)`,会**冲掉 `setEndlessScrollY` 设
+  的 `currentScrollY=-scrollY`**;feature 3 在 overlay 里 fork 了
+  `RjScalableLayout.smali`,把 `dispatchDraw` 末尾那条 rectify 调用
+  short-circuit(commit `69068a0`)。
 
 结论:**一页 30× 画布不做。** 改走 Y1 栈式滚动 + 分界线。
 
