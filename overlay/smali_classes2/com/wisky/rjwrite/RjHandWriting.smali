@@ -14926,8 +14926,11 @@
 
     move-result-object v0
 
+    # Feature 3 fix: dst rect = src rect (1:1 blit). Old code used v4
+    # (mBitmap-sized rect), which vertically stretched src when mBitmap had
+    # been grown by the endless-page resize. See UndoStretchFix.patch.java.
     .line 171
-    invoke-virtual {v2, p1, v3, v4, v0}, Landroid/graphics/Canvas;->drawBitmap(Landroid/graphics/Bitmap;Landroid/graphics/Rect;Landroid/graphics/Rect;Landroid/graphics/Paint;)V
+    invoke-virtual {v2, p1, v3, v3, v0}, Landroid/graphics/Canvas;->drawBitmap(Landroid/graphics/Bitmap;Landroid/graphics/Rect;Landroid/graphics/Rect;Landroid/graphics/Paint;)V
 
     .line 176
     :goto_0
@@ -14981,8 +14984,11 @@
 
     move-result-object v0
 
+    # Feature 3 fix: same as the mBitmap blit above — 1:1 dst rect for
+    # mLastBitmap, otherwise undo stretches the historical snapshot when
+    # mLastBitmap is taller than the snapshot.
     .line 178
-    invoke-virtual {v2, p1, v3, v4, v0}, Landroid/graphics/Canvas;->drawBitmap(Landroid/graphics/Bitmap;Landroid/graphics/Rect;Landroid/graphics/Rect;Landroid/graphics/Paint;)V
+    invoke-virtual {v2, p1, v3, v3, v0}, Landroid/graphics/Canvas;->drawBitmap(Landroid/graphics/Bitmap;Landroid/graphics/Rect;Landroid/graphics/Rect;Landroid/graphics/Paint;)V
 
     .line 184
     :goto_1

@@ -6162,11 +6162,28 @@
     .line 1237
     iget v4, p0, Lcom/wisky/rjwrite/NoteView;->scaleFactor:F
 
+    # Feature 3: read scrollX/Y from RjHandWriting (kept current by
+    # BaseHandWriteView.setEndlessScrollY → feature3SetScrollYOnly), NOT
+    # from NoteView.currentScrollX/Y which are only set by the loadBitmap
+    # -with-matrix path and remain 0 during endless-page scroll. Without
+    # this, every RjWriteOperator gets currentScrollY=0 stored, and at
+    # undo replay, RjWriteOperator.recoverParam → RjHandWriting.recoverParam
+    # forces history.currentScrollY=0 — events then apply at screen-y in
+    # history.mBitmap instead of canvas-y, and undo "teleports" lower
+    # strokes upward by main.scrollY at write time.
     .line 1238
-    iget v5, p0, Lcom/wisky/rjwrite/NoteView;->currentScrollX:F
+    iget-object v5, p0, Lcom/wisky/rjwrite/NoteView;->rjHandWriting:Lcom/wisky/rjwrite/RjHandWriting;
+
+    invoke-static {v5}, Lcom/wisky/rjwrite/RjHandWriting;->access$getCurrentScrollX$p(Lcom/wisky/rjwrite/RjHandWriting;)F
+
+    move-result v5
 
     .line 1239
-    iget v6, p0, Lcom/wisky/rjwrite/NoteView;->currentScrollY:F
+    iget-object v6, p0, Lcom/wisky/rjwrite/NoteView;->rjHandWriting:Lcom/wisky/rjwrite/RjHandWriting;
+
+    invoke-static {v6}, Lcom/wisky/rjwrite/RjHandWriting;->access$getCurrentScrollY$p(Lcom/wisky/rjwrite/RjHandWriting;)F
+
+    move-result v6
 
     .line 1240
     iget v7, p0, Lcom/wisky/rjwrite/NoteView;->mLocationScreenX:I
@@ -7825,6 +7842,61 @@
     return-object p0
 .end method
 
+# Feature 3: keep the OperateStack's history RjHandWriting in sync with main
+# before each undo/redo replay. The history instance is a SEPARATE
+# RjHandWriting (created at line 1819 of initRjHandWriting()) with its own
+# mBitmap and currentScrollY. Without this sync, replay places strokes at
+# screen-y in a 1×screen-height history.mBitmap, then RjHandWriting.loadBitmap
+# blits that 1× snapshot 1:1 onto a grown main.mBitmap — strokes that were
+# written at canvas-y > screen-h appear at screen-y after undo (visible bug:
+# "下方笔记上移一大截"). Syncing scrollY + growing history.mBitmap to match
+# main makes replay land at correct canvas-y. Caveat: this uses main's CURRENT
+# scrollY, so it's correct only when undo happens at the same scroll position
+# as the writes; for the common case (write → undo immediately) that holds.
+.method private final feature3SyncHistoryHandWriting()V
+    .locals 4
+
+    iget-object v0, p0, Lcom/wisky/rjwrite/NoteView;->operateHistoryStack:Lcom/wisky/writebasemodle/history/OperateStack;
+
+    if-eqz v0, :feature3_sync_done
+
+    invoke-virtual {v0}, Lcom/wisky/writebasemodle/history/OperateStack;->getHandWriting()Lcom/wisky/writebasemodle/history/HandWritingImp;
+
+    move-result-object v0
+
+    instance-of v1, v0, Lcom/wisky/rjwrite/RjHandWriting;
+
+    if-eqz v1, :feature3_sync_done
+
+    check-cast v0, Lcom/wisky/rjwrite/RjHandWriting;
+
+    iget-object v1, p0, Lcom/wisky/rjwrite/NoteView;->rjHandWriting:Lcom/wisky/rjwrite/RjHandWriting;
+
+    if-eqz v1, :feature3_sync_done
+
+    # 1) Grow history.mBitmap to match main.mBitmap.height. feature3ResizeMBitmap
+    # is a no-op when newH <= currentH, and preserves existing content at (0,0)
+    # when growing.
+    invoke-virtual {v1}, Lcom/wisky/rjwrite/RjHandWriting;->feature3GetMBitmapHeight()I
+
+    move-result v2
+
+    invoke-virtual {v0, v2}, Lcom/wisky/rjwrite/RjHandWriting;->feature3ResizeMBitmap(I)V
+
+    # 2) history.currentScrollY = main.currentScrollY. This makes
+    # history.handWriting.onTouchEvent(event) compute bitmap_y = event.y -
+    # currentScrollY = canvas-y, matching how the events were written into
+    # main when they happened.
+    invoke-static {v1}, Lcom/wisky/rjwrite/RjHandWriting;->access$getCurrentScrollY$p(Lcom/wisky/rjwrite/RjHandWriting;)F
+
+    move-result v3
+
+    invoke-virtual {v0, v3}, Lcom/wisky/rjwrite/RjHandWriting;->feature3SetScrollYOnly(F)V
+
+    :feature3_sync_done
+    return-void
+.end method
+
 .method public final goFrontOperator()V
     .locals 2
 
@@ -7843,6 +7915,9 @@
 
     .line 1528
     invoke-static {v0, v1}, Landroid/util/Log;->i(Ljava/lang/String;Ljava/lang/String;)I
+
+    # Feature 3: sync history handwriting before replay.
+    invoke-direct {p0}, Lcom/wisky/rjwrite/NoteView;->feature3SyncHistoryHandWriting()V
 
     .line 1532
     iget-object v0, p0, Lcom/wisky/rjwrite/NoteView;->operateHistoryStack:Lcom/wisky/writebasemodle/history/OperateStack;
@@ -7874,6 +7949,9 @@
     move-result v0
 
     if-eqz v0, :cond_1
+
+    # Feature 3: sync history handwriting before replay.
+    invoke-direct {p0}, Lcom/wisky/rjwrite/NoteView;->feature3SyncHistoryHandWriting()V
 
     .line 1553
     iget-object v0, p0, Lcom/wisky/rjwrite/NoteView;->operateHistoryStack:Lcom/wisky/writebasemodle/history/OperateStack;
