@@ -185,6 +185,19 @@
     return-void
 .end method
 
+# Feature 3: disable fling (inertial scroll continuation after finger lift).
+# Reason: VerticalEndlessScrollView syncs pen.currentScrollY only at
+# ACTION_UP. Fling keeps ScrollView.scrollY moving for hundreds of ms
+# after touch-up — pen sees the stale scrollY-at-touch-up, so eraser
+# (and any subsequent stylus stroke) commits at the wrong canvas-y. E-ink
+# refresh is too slow for fling to feel good anyway, so disabling is the
+# cleanest fix. Side effect: scroll stops immediately when finger lifts.
+.method public fling(I)V
+    .locals 0
+
+    return-void
+.end method
+
 .method protected onScrollChanged(IIII)V
     .locals 3
 
